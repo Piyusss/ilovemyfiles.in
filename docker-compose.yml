@@ -1,24 +1,24 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: cloudsync-postgres
+    container_name: ilovemyfiles-postgres
     environment:
-      POSTGRES_DB: cloudsync
-      POSTGRES_USER: cloudsync
-      POSTGRES_PASSWORD: cloudsync_secret
+      POSTGRES_DB: ilovemyfiles
+      POSTGRES_USER: ilovemyfiles
+      POSTGRES_PASSWORD: ilovemyfiles_secret
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cloudsync"]
+      test: ["CMD-SHELL", "pg_isready -U ilovemyfiles"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   minio:
     image: minio/minio:latest
-    container_name: cloudsync-minio
+    container_name: ilovemyfiles-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -38,7 +38,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: cloudsync-redis
+    container_name: ilovemyfiles-redis
     ports:
       - "6380:6379"
     volumes:

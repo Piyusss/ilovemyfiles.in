@@ -13,6 +13,9 @@ frontend/node_modules/
 backend/.mvn/
 backend/mvnw.cmd
 
+# Local tool config
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db

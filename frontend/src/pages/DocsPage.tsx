@@ -390,7 +390,7 @@ export function DocsPage() {
               <div className="w-7 h-7 bg-white rounded flex items-center justify-center">
                 <Cloud className="w-4 h-4 text-surface-950" />
               </div>
-              <span className="font-semibold text-white hidden sm:inline">CloudSync</span>
+              <span className="font-semibold text-white hidden sm:inline">ilovemyfiles.in</span>
               <span className="text-surface-600">/</span>
               <span className="text-surface-300 text-sm">Docs</span>
             </Link>
@@ -433,11 +433,11 @@ export function DocsPage() {
           <div className="mb-2 text-xs font-medium text-surface-500 uppercase tracking-[0.2em]">
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">
-            CloudSync  Documentation
+            ilovemyfiles.in Documentation
           </h1>
           <p className="text-surface-400 leading-relaxed mb-2">
             A complete reference to the architecture, engineering decisions, data flow, and
-            operational design of CloudSync - written so anyone can understand the system without
+            operational design of ilovemyfiles.in - written so anyone can understand the system without
             reading the source.
           </p>
 
@@ -446,7 +446,7 @@ export function DocsPage() {
             {/* ── 1. PROJECT OVERVIEW ───────────────────────────────────────── */}
             <Section id="introduction" title="Introduction">
               <P>
-                CloudSync is a full-stack cloud storage platform (a Google Drive-style product)
+                ilovemyfiles.in is a full-stack cloud storage platform (a Google Drive-style product)
                 built to demonstrate production-grade engineering: chunked resumable uploads,
                 content-addressed deduplication, versioning, Redis caching, and token-based auth.
               </P>
@@ -455,7 +455,7 @@ export function DocsPage() {
             <Section id="problem" title="Problem statement">
               <P>
                 Naive file-storage apps fail predictably - uploads break at 99%, duplicate files
-                waste space, overwrites lose history, and every read hits the database. CloudSync
+                waste space, overwrites lose history, and every read hits the database. ilovemyfiles.in
                 addresses each directly:
               </P>
               <UL
@@ -503,7 +503,7 @@ export function DocsPage() {
             {/* ── 2. SYSTEM ARCHITECTURE ────────────────────────────────────── */}
             <Section id="architecture-overview" title="High-level architecture">
               <P>
-                CloudSync is a single-page React client talking to a stateless Spring Boot API,
+                ilovemyfiles.in is a single-page React client talking to a stateless Spring Boot API,
                 which is backed by three managed services: PostgreSQL for metadata, Redis for
                 caching, and S3-compatible object storage for file bytes. Authentication is delegated
                 to Clerk.
@@ -551,7 +551,7 @@ export function DocsPage() {
   participant P as Postgres
   B->>A: GET /api/files?folderId=… (Bearer JWT)
   A->>A: Verify JWT, resolve userId
-  A->>R: GET cloudsync:files::user:folder
+  A->>R: GET ilovemyfiles:files::user:folder
   alt cache hit
     R-->>A: cached DTO list
   else cache miss
@@ -668,9 +668,9 @@ MinioClient  → S3-compatible object storage`}
                 never stale.
               </P>
               <Code title="cache keys">
-{`cloudsync:user-dto::<userId>          TTL 5m
-cloudsync:files::<userId>:<folder>    TTL 5m
-cloudsync:folders::<userId>:<parent>  TTL 10m`}
+{`ilovemyfiles:user-dto::<userId>          TTL 5m
+ilovemyfiles:files::<userId>:<folder>    TTL 5m
+ilovemyfiles:folders::<userId>:<parent>  TTL 10m`}
               </Code>
               <Callout>
                 Cache invalidation is the hard part: self-invocation bypasses Spring’s proxy, so
@@ -1002,7 +1002,7 @@ cd frontend && npm install && npm run dev`}
           </div>
 
           <div className="mt-16 pt-6 border-t border-surface-800 text-sm text-surface-600">
-            CloudSync — Spring Boot · React · PostgreSQL · Redis · S3-compatible storage
+            ilovemyfiles.in — Spring Boot · React · PostgreSQL · Redis · S3-compatible storage
           </div>
         </main>
       </div>

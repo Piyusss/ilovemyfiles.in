@@ -24,10 +24,10 @@ api.interceptors.request.use(async (config) => {
     const session = window.Clerk?.session;
     let token: string | null = null;
     if (session) {
-      // Prefer the custom 'cloudvault' template (adds email/fullName claims),
+      // Prefer the custom 'ilovemyfiles' template (adds email/fullName claims),
       // but fall back to the default session token if that template doesn't exist.
       try {
-        token = await session.getToken({ template: 'cloudvault' });
+        token = await session.getToken({ template: 'ilovemyfiles' });
       } catch {
         token = null;
       }

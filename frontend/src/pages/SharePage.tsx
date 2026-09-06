@@ -65,7 +65,7 @@ export function SharePage() {
           href="/"
           className="mt-5 text-brand-400 hover:text-brand-300 text-sm transition-colors"
         >
-          Go to CloudSync →
+          Go to ilovemyfiles.in →
         </a>
       </div>
     );
@@ -142,7 +142,7 @@ export function SharePage() {
           </div>
         )}
 
-        <p className="text-xs text-surface-700 mt-6">Shared via CloudSync</p>
+        <p className="text-xs text-surface-700 mt-6">Shared via ilovemyfiles.in</p>
       </div>
     </div>
   );

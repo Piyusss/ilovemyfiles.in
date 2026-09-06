@@ -42,7 +42,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           <div className="w-7 h-7 bg-white rounded flex items-center justify-center shrink-0">
             <Cloud className="w-4 h-4 text-surface-950" />
           </div>
-          <span className="text-base font-semibold text-white truncate">CloudSync</span>
+          <span className="text-base font-semibold text-white truncate">ilovemyfiles.in</span>
         </Link>
         <button
           onClick={onClose}

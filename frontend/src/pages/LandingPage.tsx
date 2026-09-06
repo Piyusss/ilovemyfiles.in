@@ -254,13 +254,13 @@ function RedisVisual() {
     <div className="space-y-3">
       {/* redis-cli terminal — the app's real cache keys */}
       <CodeBlock title="redis-cli · Upstash">
-        <div><span className={dim}>$</span> GET cloudsync:files::u42:root</div>
+        <div><span className={dim}>$</span> GET ilovemyfiles:files::u42:root</div>
         <div className="text-white">  ↳ HIT · 8 ms</div>
         <div className="h-2.5" />
-        <div><span className={dim}>$</span> KEYS cloudsync:*</div>
-        <div className="text-surface-400">  1) cloudsync:user-dto::u42</div>
-        <div className="text-surface-400">  2) cloudsync:files::u42:root</div>
-        <div className="text-surface-400">  3) cloudsync:folders::u42:root</div>
+        <div><span className={dim}>$</span> KEYS ilovemyfiles:*</div>
+        <div className="text-surface-400">  1) ilovemyfiles:user-dto::u42</div>
+        <div className="text-surface-400">  2) ilovemyfiles:files::u42:root</div>
+        <div className="text-surface-400">  3) ilovemyfiles:folders::u42:root</div>
         <div className="h-2.5" />
         <div><span className={dim}># on upload / delete / move</span></div>
         <div><span className="text-white">@CacheEvict</span> <span className={dim}>→ keys invalidated</span></div>
@@ -385,7 +385,7 @@ const metrics = [
 
 const faqs: { q: string; qShort?: string; a: string }[] = [
   {
-    q: 'What can I do with CloudSync?',
+    q: 'What can I do with ilovemyfiles.in?',
     a: 'Upload and organize files into folders, share them with public, password-protected, or expiring links, keep a full version history of every file, search across everything, and recover deleted files from a 30-day recycle bin.',
   },
   {
@@ -466,7 +466,7 @@ export function LandingPage() {
             <div className="w-7 h-7 bg-white rounded flex items-center justify-center">
               <Cloud className="w-4 h-4 text-surface-950" />
             </div>
-            <span className="font-semibold text-white">CloudSync</span>
+            <span className="font-semibold text-white">ilovemyfiles.in</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
             <ThemeToggle className="!p-1.5" />
@@ -620,7 +620,7 @@ export function LandingPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-surface-700" />
               <span className="w-2.5 h-2.5 rounded-full bg-surface-700" />
               <div className="ml-3 px-3 py-1 rounded bg-surface-900 border border-surface-800 text-[11px] font-mono text-surface-500">
-                cloudsync.app/files
+                ilovemyfiles.in/files
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-[200px_1fr]">

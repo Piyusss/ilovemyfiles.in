@@ -3,11 +3,11 @@ server:
 
 spring:
   application:
-    name: cloudsync
+    name: ilovemyfiles
 
   # ── PostgreSQL (local Docker by default; Neon in production) ────────────────
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/cloudsync?user=cloudsync&password=cloudsync_secret}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/ilovemyfiles?user=ilovemyfiles&password=ilovemyfiles_secret}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -55,7 +55,7 @@ minio:
   endpoint: ${STORAGE_ENDPOINT:http://localhost:9002}
   access-key: ${STORAGE_ACCESS_KEY:minioadmin}
   secret-key: ${STORAGE_SECRET_KEY:minioadmin123}
-  bucket: ${STORAGE_BUCKET:cloudsync}
+  bucket: ${STORAGE_BUCKET:ilovemyfiles}
   region: ${STORAGE_REGION:us-east-1}
 
 # Presigned-URL lifetime (minutes) for direct browser <-> storage transfers
@@ -74,5 +74,5 @@ app:
 # Logging
 logging:
   level:
-    com.cloudsync: ${LOG_LEVEL:DEBUG}
+    in.ilovemyfiles: ${LOG_LEVEL:DEBUG}
     org.springframework.security: INFO
