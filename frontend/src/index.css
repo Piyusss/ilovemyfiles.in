@@ -6,23 +6,17 @@
 
 /* ────────────────────────────────────────────────────────────────────────────
    Theme tokens
-   The whole UI is monochrome, so light mode is simply the *inverted* dark ramp:
-   surface-50 (lightest in dark) ↔ surface-950 (darkest), and so on. Components
-   keep using bg-surface-900 / text-surface-100 / etc. and flip automatically.
-
-     :root  → LIGHT  (default — no class needed)
-     .dark  → DARK   (opt-in, toggled by adding `dark` to <html>)
-
-   Values are "R G B" triplets consumed by rgb(var(--x) / <alpha-value>) in the
-   Tailwind config, so opacity modifiers (bg-surface-800/30) still work.
+   Light-only monochrome palette. Components use bg-surface-900 / text-surface-100
+   / etc.; values are "R G B" triplets consumed by rgb(var(--x) / <alpha-value>)
+   in the Tailwind config, so opacity modifiers (bg-surface-800/30) still work.
    ──────────────────────────────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
 
-  /* white token → near-black in light mode (so text-white/bg-white invert) */
+  /* white token → near-black (so text-white/bg-white read as ink, not literal white) */
   --c-white: 10 10 10;
 
-  /* surface — inverted neutral ramp */
+  /* surface — neutral ramp, dark-to-light */
   --surface-50:  10 10 10;
   --surface-100: 23 23 23;
   --surface-200: 38 38 38;
@@ -35,7 +29,7 @@
   --surface-900: 245 245 245;
   --surface-950: 250 250 250;
 
-  /* brand accent — near-black on light */
+  /* brand accent — near-black */
   --brand-50:  0 0 0;
   --brand-100: 5 5 5;
   --brand-200: 10 10 10;
@@ -47,38 +41,6 @@
   --brand-800: 92 92 92;
   --brand-900: 140 140 140;
   --brand-950: 173 173 173;
-}
-
-.dark {
-  color-scheme: dark;
-
-  --c-white: 255 255 255;
-
-  /* surface — original neutral ramp (shadcn / Vercel "neutral") */
-  --surface-50:  250 250 250;
-  --surface-100: 245 245 245;
-  --surface-200: 229 229 229;
-  --surface-300: 212 212 212;
-  --surface-400: 163 163 163;
-  --surface-500: 115 115 115;
-  --surface-600: 82 82 82;
-  --surface-700: 64 64 64;
-  --surface-800: 38 38 38;
-  --surface-900: 23 23 23;
-  --surface-950: 10 10 10;
-
-  /* brand accent — near-white on dark */
-  --brand-50:  255 255 255;
-  --brand-100: 250 250 250;
-  --brand-200: 245 245 245;
-  --brand-300: 255 255 255;
-  --brand-400: 237 237 237;
-  --brand-500: 212 212 212;
-  --brand-600: 229 229 229;
-  --brand-700: 212 212 212;
-  --brand-800: 163 163 163;
-  --brand-900: 115 115 115;
-  --brand-950: 82 82 82;
 }
 
 @layer base {

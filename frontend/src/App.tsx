@@ -1,10 +1,7 @@
-import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider, SignIn, SignUp } from '@clerk/clerk-react';
-import { Loader2 } from 'lucide-react';
 import { AuthProvider } from './auth/AuthContext';
-import { ThemeProvider } from './theme/ThemeProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ProtectedRoute } from './auth/ProtectedRoute';
 import { AppLayout } from './components/layout/AppLayout';
@@ -15,9 +12,6 @@ import { TrashPage } from './pages/TrashPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SharePage } from './pages/SharePage';
 import { SearchPage } from './pages/SearchPage';
-
-// Lazy-loaded so the Mermaid library only ships when /docs is visited
-const DocsPage = lazy(() => import('./pages/DocsPage').then((m) => ({ default: m.DocsPage })));
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | undefined;
 
@@ -56,7 +50,6 @@ function App() {
   }
 
   return (
-    <ThemeProvider>
     <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/sign-in">
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
@@ -84,20 +77,6 @@ function App() {
               {/* Public pages */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/share/:token" element={<SharePage />} />
-              <Route
-                path="/docs"
-                element={
-                  <Suspense
-                    fallback={
-                      <div className="min-h-screen bg-surface-950 flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-surface-500 animate-spin" />
-                      </div>
-                    }
-                  >
-                    <DocsPage />
-                  </Suspense>
-                }
-              />
 
               {/* Protected app */}
               <Route
@@ -123,7 +102,6 @@ function App() {
         </BrowserRouter>
       </QueryClientProvider>
     </ClerkProvider>
-    </ThemeProvider>
   );
 }
 

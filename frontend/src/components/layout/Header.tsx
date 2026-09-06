@@ -1,7 +1,6 @@
 import { Menu } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 import { NotificationBell } from '../NotificationBell';
-import { ThemeToggle } from '../../theme/ThemeToggle';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -18,7 +17,6 @@ export function Header({ onMenuClick }: HeaderProps) {
         <Menu className="w-5 h-5" />
       </button>
       <div className="flex-1" />
-      <ThemeToggle />
       <NotificationBell />
       <UserButton
         appearance={{

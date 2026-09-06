@@ -1,11 +1,36 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, UserButton } from '@clerk/clerk-react';
+import { motion } from 'framer-motion';
 import {
   Cloud, ArrowRight, UploadCloud, History, ShieldCheck,
-  Boxes, Plus, Minus, Database, Server, HardDrive, ChevronDown,
+  Boxes, Database, Server, HardDrive, ChevronDown,
+  FileText, Folder, Image,
 } from 'lucide-react';
-import { ThemeToggle } from '../theme/ThemeToggle';
+
+/* Lucide ships generic UI icons only (no brand logos), so the footer's
+   LinkedIn/GitHub/YouTube marks are inlined here as plain SVG paths. */
+function SocialIcon({ path, label }: { path: string; label: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="w-4 h-4"
+      fill="currentColor"
+      aria-label={label}
+    >
+      <path d={path} />
+    </svg>
+  );
+}
+
+const SOCIAL_ICON_PATHS = {
+  linkedin:
+    'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z',
+  github:
+    'M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12',
+  youtube:
+    'M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z',
+};
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Motion primitives — dependency-free, respect prefers-reduced-motion
@@ -98,8 +123,9 @@ function Connector({ dir }: { dir: 'lr' | 'rl' }) {
       >
         <path
           d={path}
+          className="text-black"
           fill="none"
-          stroke="rgb(var(--surface-700))"
+          stroke="currentColor"
           strokeWidth={1.5}
           strokeDasharray="1 7"
           strokeLinecap="round"
@@ -115,7 +141,7 @@ function Connector({ dir }: { dir: 'lr' | 'rl' }) {
           transition: prefersReduced ? 'none' : 'opacity 0.45s ease 0.65s',
         }}
       >
-        <ChevronDown className="w-5 h-5 text-surface-600" />
+        <ChevronDown className="w-5 h-5 text-black" />
       </div>
     </div>
   );
@@ -325,6 +351,8 @@ const highlights: {
   shortDesc: string;
   desc: string;
   visual: ReactNode;
+  /** Icon-badge border/background/icon color — echoes the hero's blob hues. */
+  color: string;
 }[] = [
   {
     icon: UploadCloud,
@@ -333,6 +361,7 @@ const highlights: {
     shortDesc: '5 MB chunks, 3 in parallel. Drops mid-upload? Resumes from the last completed chunk.',
     desc: 'Files are split into 5 MB chunks and uploaded three at a time, each with its own retry and exponential backoff. Lose your connection at 99%? The transfer resumes from the last completed chunk - never from zero.',
     visual: <ChunkVisual />,
+    color: 'border-blue-100 bg-blue-50 text-blue-500',
   },
   {
     icon: Boxes,
@@ -341,6 +370,7 @@ const highlights: {
     shortDesc: 'SHA-256 hashed before upload. Identical content stored once, shared by reference.',
     desc: 'Every file is hashed with SHA-256 before it leaves the browser. If that exact content already exists, the upload is skipped entirely and the object is shared via a reference count - a thousand identical files cost one.',
     visual: <DedupVisual />,
+    color: 'border-violet-100 bg-violet-50 text-violet-500',
   },
   {
     icon: History,
@@ -349,6 +379,7 @@ const highlights: {
     shortDesc: 'Overwriting creates a version. Restore any previous state in one click.',
     desc: 'Overwriting a file never destroys the old one - it becomes a version. Restore any previous state with a click, while storage accounting tracks only the delta between versions.',
     visual: <VersionVisual />,
+    color: 'border-amber-100 bg-amber-50 text-amber-500',
   },
   {
     icon: ShieldCheck,
@@ -357,6 +388,7 @@ const highlights: {
     shortDesc: 'Clerk JWTs verified on every request. Data isolated per user, share links support passwords.',
     desc: 'Sessions are issued by Clerk; the backend acts as an OAuth2 resource server, verifying every request against Clerk\'s rotating public keys. Data is isolated per user at the query layer, and share links support passwords and expiry.',
     visual: <SecurityVisual />,
+    color: 'border-emerald-100 bg-emerald-50 text-emerald-500',
   },
   {
     icon: Database,
@@ -365,6 +397,7 @@ const highlights: {
     shortDesc: 'File lists and folders served from Redis. Single-digit ms reads, explicit invalidation on every write.',
     desc: 'Every hot path - file lists, folders, user metadata - is served from Redis. The backend uses a cache-aside pattern with explicit @CacheEvict invalidation on every upload, delete, and move, so reads land in single-digit milliseconds and never go stale. Search runs on Postgres full-text indexes.',
     visual: <RedisVisual />,
+    color: 'border-rose-100 bg-rose-50 text-rose-500',
   },
   {
     icon: Boxes,
@@ -373,76 +406,48 @@ const highlights: {
     shortDesc: 'Spring Boot + Postgres + B2 + Redis. Swap any provider via env vars.',
     desc: 'Stateless Spring Boot services backed by Neon Postgres, Backblaze B2 object storage, and Upstash Redis. Every dependency is S3 or standards-compatible, so providers swap with an environment variable.',
     visual: <ArchVisual />,
+    color: 'border-cyan-100 bg-cyan-50 text-cyan-500',
   },
 ];
 
-const metrics = [
-  { value: '5 MB', label: 'upload chunk size' },
-  { value: '2 GB', label: 'max file size' },
-  { value: 'SHA-256', label: 'dedup hashing' },
-  { value: '30 days', label: 'recycle-bin retention' },
+/* ── Hero illustration — floating files converging on a cloud ──────────────── */
+
+const orbitIcons: {
+  Icon: typeof Cloud;
+  color: string;
+  top: string;
+  left: string;
+  box: string;
+  iconSize: string;
+  delay: number;
+  duration: number;
+}[] = [
+  { Icon: Cloud,      color: 'bg-blue-100 text-blue-500',       top: '36%', left: '40%', box: 'w-20 h-20', iconSize: 'w-9 h-9', delay: 0,   duration: 4.2 },
+  { Icon: FileText,   color: 'bg-violet-100 text-violet-500',   top: '4%',  left: '6%',  box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.3, duration: 3.6 },
+  { Icon: Folder,     color: 'bg-amber-100 text-amber-500',     top: '8%',  left: '72%', box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.6, duration: 3.9 },
+  { Icon: Image,      color: 'bg-emerald-100 text-emerald-500', top: '66%', left: '4%',  box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.9, duration: 3.4 },
+  { Icon: ShieldCheck,color: 'bg-rose-100 text-rose-500',       top: '68%', left: '76%', box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.2, duration: 4.4 },
 ];
 
-const faqs: { q: string; qShort?: string; a: string }[] = [
-  {
-    q: 'What can I do with ilovemyfiles.in?',
-    a: 'Upload and organize files into folders, share them with public, password-protected, or expiring links, keep a full version history of every file, search across everything, and recover deleted files from a 30-day recycle bin.',
-  },
-  {
-    q: 'How is my data secured?',
-    qShort: 'How is data secured?',
-    a: 'Authentication is handled by Clerk, and the API verifies every request against Clerk\'s public keys as an OAuth2 resource server. Your files are isolated per account at the database layer, transfers run over TLS, and share links can require a password or expire automatically.',
-  },
-  {
-    q: 'How does it stay fast with large files?',
-    qShort: 'How does it stay fast?',
-    a: 'Large files upload in parallel 5 MB chunks with automatic retry and resume. Frequently accessed data is cached in Redis with explicit invalidation, and search uses Postgres full-text indexes, so reads stay quick without serving stale results.',
-  },
-  {
-    q: 'Does it really store duplicate files only once?',
-    qShort: 'Are duplicate files stored once?',
-    a: 'Yes. Each upload is hashed with SHA-256; if identical content already exists, the upload is skipped and the existing object is referenced with a reference count. Deleting one copy never removes content another file still needs.',
-  },
-  {
-    q: 'What does it cost?',
-    a: 'New accounts start with 5 GB of free storage. The project runs entirely on free-tier cloud infrastructure (Neon, Backblaze B2, Upstash), making it ideal to self-host or evaluate at no cost.',
-  },
-  {
-    q: 'Can I integrate with it or self-host?',
-    qShort: 'Can I self-host it?',
-    a: 'Object storage is S3-compatible and the backend exposes a clean REST API, so you can point it at AWS S3, Cloudflare R2, MinIO, or Backblaze B2 by changing environment variables with no code changes required.',
-  },
-];
-
-function FaqItem({ q, a, qShort }: { q: string; a: string; qShort?: string }) {
-  const [open, setOpen] = useState(false);
+function StorageIllustration() {
   return (
-    <div className="border-b border-surface-800">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="w-full flex items-center justify-between gap-4 py-5 text-left group"
-      >
-        <span className="text-sm sm:text-base font-medium text-surface-100 group-hover:text-white transition-colors">
-          {qShort ? (
-            <>
-              <span className="sm:hidden">{qShort}</span>
-              <span className="hidden sm:inline">{q}</span>
-            </>
-          ) : q}
-        </span>
-        <span className="shrink-0 w-6 h-6 rounded-full border border-surface-700 flex items-center justify-center text-surface-400 group-hover:text-white group-hover:border-surface-500 transition-colors">
-          {open ? <Minus className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-        </span>
-      </button>
-      <div
-        className="grid transition-all duration-300 ease-out"
-        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
-      >
-        <div className="overflow-hidden">
-          <p className="text-sm text-surface-400 leading-relaxed pb-5 pr-10">{a}</p>
-        </div>
-      </div>
+    <div className="relative w-full h-[22rem]" aria-hidden>
+      {orbitIcons.map(({ Icon, color, top, left, box, iconSize, delay, duration }, i) => (
+        <motion.div
+          key={i}
+          className={`absolute ${box} rounded-2xl shadow-sm flex items-center justify-center ${color}`}
+          style={{ top, left }}
+          initial={{ opacity: 0, scale: 0.6, y: 16 }}
+          animate={{ opacity: 1, scale: 1, y: [0, -14, 0] }}
+          transition={{
+            opacity: { duration: 0.5, delay },
+            scale: { duration: 0.5, delay },
+            y: { duration, repeat: Infinity, ease: 'easeInOut', delay: delay + 0.5 },
+          }}
+        >
+          <Icon className={iconSize} />
+        </motion.div>
+      ))}
     </div>
   );
 }
@@ -469,13 +474,6 @@ export function LandingPage() {
             <span className="font-semibold text-white">ilovemyfiles.in</span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
-            <ThemeToggle className="!p-1.5" />
-            <Link
-              to="/docs"
-              className="hidden sm:inline-flex text-sm text-surface-400 hover:text-white transition-colors px-3 py-1.5"
-            >
-              Docs
-            </Link>
             {!isLoaded ? null : isSignedIn ? (
               <>
                 <Link to="/files" className="btn-primary text-sm px-3 sm:px-4 py-1.5 flex items-center gap-1.5">
@@ -501,6 +499,13 @@ export function LandingPage() {
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
+        {/* Soft colorful ambient blobs — the bit of color the rest of the
+            page borrows from (feature icon badges reuse these same hues). */}
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-28 -right-16 w-[26rem] h-[26rem] rounded-full bg-blue-200/50 blur-3xl" />
+          <div className="absolute top-16 right-1/3 w-72 h-72 rounded-full bg-violet-200/40 blur-3xl" />
+          <div className="absolute -top-10 right-10 w-64 h-64 rounded-full bg-rose-200/40 blur-3xl" />
+        </div>
         <div
           ref={gridRef}
           aria-hidden
@@ -508,55 +513,61 @@ export function LandingPage() {
           style={{
             backgroundImage: 'radial-gradient(circle at 1px 1px, rgb(var(--surface-600)) 1px, transparent 0)',
             backgroundSize: '34px 34px',
-            maskImage: 'radial-gradient(ellipse 70% 60% at 50% 30%, #000 40%, transparent 100%)',
-            WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 50% 30%, #000 40%, transparent 100%)',
+            maskImage: 'radial-gradient(ellipse 70% 60% at 30% 30%, #000 40%, transparent 100%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 30% 30%, #000 40%, transparent 100%)',
           }}
         />
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-20 text-center">
-          <Reveal>
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.05] tracking-tight mb-5">
-              Your <span style={{ color: '#66ff00' }}>files</span>.<br />
-              <span className="text-surface-400">Stored right.</span>
-            </h1>
-          </Reveal>
-          <Reveal delay={80}>
-            <p className="text-surface-400 text-xs sm:text-[13px] max-w-xs sm:max-w-none sm:w-fit mx-auto mb-2 leading-relaxed sm:whitespace-nowrap">
-              <span className="sm:hidden">Uploads, versioning, dedup, and sharing - done right.</span>
-              <span className="hidden sm:inline">A cloud storage platform built like a real product: chunked resumable uploads, content-addressed deduplication, versioning, and secure sharing.</span>
-            </p>
-          </Reveal>
-          <Reveal delay={160}>
-            <div className="inline-flex items-center px-3 py-1 border border-surface-800 bg-surface-900/60 text-surface-400 text-xs font-medium mb-9 text-center max-w-xs sm:max-w-none">
-              <span className="sm:hidden">Educational project</span>
-              <span className="hidden sm:inline">Note: This Project is made for educational purposes by Piyush Raj</span>
-            </div>
-          </Reveal>
-          <Reveal delay={240}>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {!isLoaded ? null : isSignedIn ? (
-                <Link to="/files" className="btn-primary flex items-center gap-2 px-5 py-2.5">
-                  Go to your files <ArrowRight className="w-4 h-4" />
-                </Link>
-              ) : (
-                <>
-                  <Link to="/sign-up" className="btn-primary flex items-center gap-2 px-5 py-2.5">
-                    Start for free <ArrowRight className="w-4 h-4" />
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-16 sm:pb-20 lg:grid lg:grid-cols-[1.15fr_0.85fr] lg:gap-8 lg:items-center">
+          <div className="max-w-2xl">
+            <Reveal>
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.05] tracking-tight mb-5">
+                Your <span className="text-blue-600">files</span>.<br />
+                <span className="text-surface-400">Stored right.</span>
+              </h1>
+            </Reveal>
+            <Reveal delay={80}>
+              <p className="text-surface-400 text-xs sm:text-sm max-w-md mb-2 leading-relaxed">
+                <span className="sm:hidden">Uploads, versioning, dedup, and sharing - done right.</span>
+                <span className="hidden sm:inline">A cloud storage platform built like a real product: chunked resumable uploads, content-addressed deduplication, versioning, and secure sharing.</span>
+              </p>
+            </Reveal>
+            <Reveal delay={160}>
+              <div className="inline-flex items-center px-3 py-1 border border-surface-800 bg-surface-900/60 text-surface-400 text-xs font-medium mb-9">
+                <span className="sm:hidden">Educational project</span>
+                <span className="hidden sm:inline">Note: This Project is made for educational purposes by Piyush Raj</span>
+              </div>
+            </Reveal>
+            <Reveal delay={240}>
+              <div className="flex flex-wrap items-center gap-3">
+                {!isLoaded ? null : isSignedIn ? (
+                  <Link to="/files" className="btn-primary flex items-center gap-2 px-5 py-2.5">
+                    Go to your files <ArrowRight className="w-4 h-4" />
                   </Link>
-                  <Link
-                    to="/sign-in"
-                    className="px-5 py-2.5 rounded-md border border-surface-700 text-surface-300 hover:text-white hover:border-surface-500 transition-colors text-sm font-medium"
-                  >
-                    Sign in
-                  </Link>
-                </>
-              )}
-            </div>
-          </Reveal>
+                ) : (
+                  <>
+                    <Link to="/sign-up" className="btn-primary flex items-center gap-2 px-5 py-2.5">
+                      Start for free <ArrowRight className="w-4 h-4" />
+                    </Link>
+                    <Link
+                      to="/sign-in"
+                      className="px-5 py-2.5 rounded-md border border-surface-700 text-surface-300 hover:text-white hover:border-surface-500 transition-colors text-sm font-medium"
+                    >
+                      Sign in
+                    </Link>
+                  </>
+                )}
+              </div>
+            </Reveal>
+          </div>
+          <div className="hidden lg:block">
+            <StorageIllustration />
+          </div>
         </div>
       </section>
 
       {/* ── Engineering highlights (scroll-reveal) ───────────────────────── */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 pb-10 sm:pt-12 sm:pb-16">
+      <section className="bg-blue-50/70">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 pb-10 sm:pt-12 sm:pb-16">
         <Reveal>
           <p className="text-center text-xs font-light uppercase tracking-[0.3em] text-surface-500 mb-12 sm:mb-16">
             Features
@@ -571,8 +582,8 @@ export function LandingPage() {
                   <Reveal className={flip ? 'lg:order-2' : ''}>
                     <div>
                       <div className="inline-flex items-center gap-2 mb-4">
-                        <span className="w-8 h-8 rounded-md border border-surface-800 bg-surface-900 flex items-center justify-center">
-                          <h.icon className="w-4 h-4 text-surface-300" />
+                        <span className={`w-8 h-8 rounded-md border flex items-center justify-center ${h.color}`}>
+                          <h.icon className="w-4 h-4" />
                         </span>
                         <span className="text-xs font-medium text-surface-500 uppercase tracking-[0.18em]">
                           {h.kicker}
@@ -598,10 +609,12 @@ export function LandingPage() {
             );
           })}
         </div>
+        </div>
       </section>
 
       {/* ── Product preview ──────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+      <section className="bg-violet-50/70">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <Reveal>
           <div className="text-center mb-12">
             <p className="text-xs font-medium text-surface-500 uppercase tracking-[0.2em] mb-3">
@@ -613,7 +626,7 @@ export function LandingPage() {
           </div>
         </Reveal>
         <Reveal delay={120} y={40}>
-          <div className="rounded-xl border border-surface-800 bg-surface-900 overflow-hidden shadow-2xl shadow-black/50">
+          <div className="rounded-xl border border-surface-800 bg-surface-900 overflow-hidden">
             {/* window chrome */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-800 bg-surface-950">
               <span className="w-2.5 h-2.5 rounded-full bg-surface-700" />
@@ -666,46 +679,51 @@ export function LandingPage() {
             </div>
           </div>
         </Reveal>
-      </section>
-
-      {/* ── Metrics / specs band ─────────────────────────────────────────── */}
-      <section className="border-y border-surface-800 bg-surface-900/30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {metrics.map((m, i) => (
-              <Reveal key={m.label} delay={i * 80}>
-                <div className="text-center">
-                  <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight font-mono">
-                    {m.value}
-                  </p>
-                  <p className="text-xs text-surface-500 mt-1.5">{m.label}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
         </div>
       </section>
 
-      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
-      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
-        <Reveal>
-          <div className="text-center mb-10">
-            <p className="text-xs font-medium text-surface-500 uppercase tracking-[0.2em] mb-3">
-              Questions
-            </p>
-            <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-              You Might Ask
-            </h2>
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
+      <footer className="border-t border-surface-800 bg-rose-50/60">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-5">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-white rounded flex items-center justify-center">
+              <Cloud className="w-3.5 h-3.5 text-surface-950" />
+            </div>
+            <span className="text-sm text-surface-400">
+              © {new Date().getFullYear()} ilovemyfiles.in — built by Piyush Raj
+            </span>
           </div>
-        </Reveal>
-        <Reveal delay={100}>
-          <div className="border-t border-surface-800">
-            {faqs.map((f) => (
-              <FaqItem key={f.q} q={f.q} qShort={f.qShort} a={f.a} />
-            ))}
+          <div className="flex items-center gap-2">
+            <a
+              href="https://www.linkedin.com/in/PLACEHOLDER"
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="LinkedIn"
+              className="p-2 rounded-md text-surface-400 hover:text-white hover:bg-surface-800 transition-colors"
+            >
+              <SocialIcon path={SOCIAL_ICON_PATHS.linkedin} label="LinkedIn" />
+            </a>
+            <a
+              href="https://github.com/PLACEHOLDER"
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="GitHub"
+              className="p-2 rounded-md text-surface-400 hover:text-white hover:bg-surface-800 transition-colors"
+            >
+              <SocialIcon path={SOCIAL_ICON_PATHS.github} label="GitHub" />
+            </a>
+            <a
+              href="https://www.youtube.com/@PLACEHOLDER"
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="YouTube"
+              className="p-2 rounded-md text-surface-400 hover:text-white hover:bg-surface-800 transition-colors"
+            >
+              <SocialIcon path={SOCIAL_ICON_PATHS.youtube} label="YouTube" />
+            </a>
           </div>
-        </Reveal>
-      </section>
+        </div>
+      </footer>
 
     </div>
   );
