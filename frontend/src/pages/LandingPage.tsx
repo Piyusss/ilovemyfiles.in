@@ -521,8 +521,8 @@ export function LandingPage() {
           <div className="max-w-2xl">
             <Reveal>
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-white leading-[1.05] tracking-tight mb-5">
-                Your <span className="text-blue-600">files</span>.<br />
-                <span className="text-surface-400">Stored right.</span>
+                Your <span className="text-blue-600">files📁</span><br />
+                <span className="text-surface-400">Stored right</span>
               </h1>
             </Reveal>
             <Reveal delay={80}>
