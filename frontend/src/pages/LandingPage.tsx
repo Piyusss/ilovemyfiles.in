@@ -695,7 +695,7 @@ export function LandingPage() {
           </div>
           <div className="flex items-center gap-2">
             <a
-              href="https://www.linkedin.com/in/PLACEHOLDER"
+              href="https://www.linkedin.com/in/piy777sus"
               target="_blank"
               rel="noreferrer noopener"
               aria-label="LinkedIn"
@@ -704,7 +704,7 @@ export function LandingPage() {
               <SocialIcon path={SOCIAL_ICON_PATHS.linkedin} label="LinkedIn" />
             </a>
             <a
-              href="https://github.com/PLACEHOLDER"
+              href="https://github.com/Piyusss"
               target="_blank"
               rel="noreferrer noopener"
               aria-label="GitHub"
@@ -713,7 +713,7 @@ export function LandingPage() {
               <SocialIcon path={SOCIAL_ICON_PATHS.github} label="GitHub" />
             </a>
             <a
-              href="https://www.youtube.com/@PLACEHOLDER"
+              href="https://www.youtube.com/@whyn0tdp/videos"
               target="_blank"
               rel="noreferrer noopener"
               aria-label="YouTube"
