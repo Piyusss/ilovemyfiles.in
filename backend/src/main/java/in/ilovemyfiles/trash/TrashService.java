@@ -76,7 +76,7 @@ public class TrashService {
         // Check storage limit
         var user = userService.findById(userId);
         if (user.getStorageUsed() + file.getSize() > user.getStorageLimit()) {
-            throw new StorageQuotaException("Storage limit exceeded — cannot restore file");
+            throw new StorageQuotaException("Storage limit exceeded - cannot restore file");
         }
 
         // The file's folder may have been deleted while it sat in trash (folder

@@ -422,16 +422,16 @@ const orbitIcons: {
   delay: number;
   duration: number;
 }[] = [
-  { Icon: Cloud,      color: 'bg-blue-100 text-blue-500',       top: '36%', left: '40%', box: 'w-20 h-20', iconSize: 'w-9 h-9', delay: 0,   duration: 4.2 },
-  { Icon: FileText,   color: 'bg-violet-100 text-violet-500',   top: '4%',  left: '6%',  box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.3, duration: 3.6 },
-  { Icon: Folder,     color: 'bg-amber-100 text-amber-500',     top: '8%',  left: '72%', box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.6, duration: 3.9 },
-  { Icon: Image,      color: 'bg-emerald-100 text-emerald-500', top: '66%', left: '4%',  box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.9, duration: 3.4 },
-  { Icon: ShieldCheck,color: 'bg-rose-100 text-rose-500',       top: '68%', left: '76%', box: 'w-14 h-14', iconSize: 'w-6 h-6', delay: 0.2, duration: 4.4 },
+  { Icon: Cloud,      color: 'bg-blue-100 text-blue-500',       top: '36%', left: '40%', box: 'w-16 h-16 sm:w-20 sm:h-20', iconSize: 'w-7 h-7 sm:w-9 sm:h-9', delay: 0,   duration: 4.2 },
+  { Icon: FileText,   color: 'bg-violet-100 text-violet-500',   top: '4%',  left: '6%',  box: 'w-11 h-11 sm:w-14 sm:h-14', iconSize: 'w-5 h-5 sm:w-6 sm:h-6', delay: 0.3, duration: 3.6 },
+  { Icon: Folder,     color: 'bg-amber-100 text-amber-500',     top: '8%',  left: '72%', box: 'w-11 h-11 sm:w-14 sm:h-14', iconSize: 'w-5 h-5 sm:w-6 sm:h-6', delay: 0.6, duration: 3.9 },
+  { Icon: Image,      color: 'bg-emerald-100 text-emerald-500', top: '66%', left: '4%',  box: 'w-11 h-11 sm:w-14 sm:h-14', iconSize: 'w-5 h-5 sm:w-6 sm:h-6', delay: 0.9, duration: 3.4 },
+  { Icon: ShieldCheck,color: 'bg-rose-100 text-rose-500',       top: '68%', left: '76%', box: 'w-11 h-11 sm:w-14 sm:h-14', iconSize: 'w-5 h-5 sm:w-6 sm:h-6', delay: 0.2, duration: 4.4 },
 ];
 
 function StorageIllustration() {
   return (
-    <div className="relative w-full h-[22rem]" aria-hidden>
+    <div className="relative w-full h-64 sm:h-80 lg:h-[22rem]" aria-hidden>
       {orbitIcons.map(({ Icon, color, top, left, box, iconSize, delay, duration }, i) => (
         <motion.div
           key={i}
@@ -559,7 +559,7 @@ export function LandingPage() {
               </div>
             </Reveal>
           </div>
-          <div className="hidden lg:block">
+          <div className="mt-10 lg:mt-0">
             <StorageIllustration />
           </div>
         </div>
@@ -690,7 +690,7 @@ export function LandingPage() {
               <Cloud className="w-3.5 h-3.5 text-surface-950" />
             </div>
             <span className="text-sm text-surface-400">
-              © {new Date().getFullYear()} ilovemyfiles.in — built by Piyush Raj
+              © {new Date().getFullYear()} ilovemyfiles.in - built by Piyush Raj
             </span>
           </div>
           <div className="flex items-center gap-2">
