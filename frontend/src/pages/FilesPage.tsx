@@ -437,7 +437,7 @@ export function FilesPage() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">My Files</h1>
+          <h1 className="text-2xl font-bold text-white">My files</h1>
           <p className="text-surface-400 mt-0.5 text-sm">
             {isLoading ? 'Loading…' : `${folders.length} folder${folders.length !== 1 ? 's' : ''}, ${files.length} file${files.length !== 1 ? 's' : ''}`}
             {activeUploads.length > 0 && (
@@ -451,7 +451,7 @@ export function FilesPage() {
             className="btn-secondary flex items-center gap-2 text-sm"
           >
             <FolderPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">New Folder</span>
+            <span className="hidden sm:inline">New folder</span>
           </button>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -563,7 +563,7 @@ export function FilesPage() {
       {/* ── New Folder Inline Form ─────────────────────────────────────────── */}
       {showNewFolder && (
         <div className="glass-card p-4">
-          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider mb-3">New Folder</p>
+          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider mb-3">New folder</p>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <Folder className="w-5 h-5 text-surface-300 shrink-0" />
@@ -933,7 +933,7 @@ export function FilesPage() {
           <div className="w-full max-w-sm bg-surface-900 border border-surface-700 rounded-lg shadow-xl mx-4">
             <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-white">Move File</p>
+                <p className="text-sm font-medium text-white">Move file</p>
                 <p className="text-xs text-surface-500 truncate mt-0.5">{moveFile.name}</p>
               </div>
               <button
@@ -999,7 +999,7 @@ export function FilesPage() {
           <div className="w-full max-w-md bg-surface-900 border border-surface-700 rounded-lg shadow-xl mx-4">
             <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-white">Version History</p>
+                <p className="text-sm font-medium text-white">Version history</p>
                 <p className="text-xs text-surface-500 truncate mt-0.5">{versionFile.name}</p>
               </div>
               <button
@@ -1075,7 +1075,7 @@ export function FilesPage() {
           <div className="w-full max-w-md bg-surface-900 border border-surface-700 rounded-lg shadow-xl mx-4">
             <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-white">Share File</p>
+                <p className="text-sm font-medium text-white">Share file</p>
                 <p className="text-xs text-surface-500 truncate mt-0.5">{shareFile.name}</p>
               </div>
               <button
@@ -1171,7 +1171,7 @@ export function FilesPage() {
                     disabled={createShareMutation.isPending}
                     className="btn-primary text-sm px-4 py-2 flex-1"
                   >
-                    {createShareMutation.isPending ? 'Creating…' : 'Create Link'}
+                    {createShareMutation.isPending ? 'Creating…' : 'Create link'}
                   </button>
                   <button
                     onClick={() => setShowShareForm(false)}

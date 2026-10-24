@@ -18,6 +18,9 @@ export default {
         // in light mode. "black" stays literal (modal overlays must dim in both).
         white: 'rgb(var(--c-white) / <alpha-value>)',
 
+        // "canvas" = literal white, since `white` above means near-black.
+        canvas: 'rgb(var(--canvas) / <alpha-value>)',
+
         // "brand" = monochrome accent (near-white on dark, near-black on light).
         // Used for links, focus rings, subtle tints. No hue.
         brand: {

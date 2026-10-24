@@ -58,7 +58,7 @@ export function SharedPage() {
           </div>
           <p className="text-surface-300 font-medium">No shared links yet</p>
           <p className="text-surface-500 text-sm mt-1">
-            Open a file's share menu in <span className="text-surface-300">My Files</span> to create a public link.
+            Open a file's share menu in <span className="text-surface-300">My files</span> to create a public link.
           </p>
         </div>
       ) : (

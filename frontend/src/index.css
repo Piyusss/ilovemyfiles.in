@@ -16,6 +16,9 @@
   /* white token → near-black (so text-white/bg-white read as ink, not literal white) */
   --c-white: 10 10 10;
 
+  /* canvas — true white, for page backgrounds (landing page) */
+  --canvas: 255 255 255;
+
   /* surface — neutral ramp, dark-to-light */
   --surface-50:  10 10 10;
   --surface-100: 23 23 23;

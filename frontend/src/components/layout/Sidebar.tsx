@@ -6,7 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { formatBytes, formatPercentage } from '../../utils/format';
 
 const navItems = [
-  { to: '/files', icon: FolderOpen, label: 'My Files' },
+  { to: '/files', icon: FolderOpen, label: 'My files' },
   { to: '/search', icon: Search, label: 'Search' },
   { to: '/shared', icon: Share2, label: 'Shared' },
   { to: '/trash', icon: Trash2, label: 'Trash' },
