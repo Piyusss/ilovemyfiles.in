@@ -3,19 +3,21 @@ package in.ilovemyfiles.chunk;
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.BadRequestException;
 import in.ilovemyfiles.common.NotFoundException;
-import in.ilovemyfiles.common.StorageQuotaException;
 import in.ilovemyfiles.notification.NotificationService;
 import in.ilovemyfiles.file.FileDto;
 import in.ilovemyfiles.file.FileService;
 import in.ilovemyfiles.file.PhysicalFileEntity;
 import in.ilovemyfiles.file.PhysicalFileRepository;
+import in.ilovemyfiles.storage.StorageCapacityService;
 import in.ilovemyfiles.storage.StorageService;
 import in.ilovemyfiles.user.User;
 import in.ilovemyfiles.user.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.unit.DataSize;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 
 import java.util.ArrayList;
@@ -40,11 +42,39 @@ public class ChunkUploadService {
     private final ActivityService activityService;
     private final NotificationService notificationService;
     private final StorageService storageService;
+    private final StorageCapacityService storageCapacityService;
+
+    // S3 parts are at least 5 MB (only the last may be smaller).
+    private static final long MIN_PART_SIZE = 5L * 1024 * 1024;
+
+    @Value("${app.max-upload-size:75MB}")
+    private DataSize maxUploadSize;
 
     // ── Init: dedup check, else open a multipart upload and presign the parts ──
 
     @Transactional
     public InitUploadResponse init(InitUploadRequest req, UUID userId) {
+        // ── Size limits — before dedup, so the limit holds for every upload ───
+        if (req.getFileSize() > maxUploadSize.toBytes()) {
+            throw new BadRequestException(
+                    "Files larger than " + maxUploadSize.toMegabytes() + " MB can't be uploaded");
+        }
+        // complete() rejects objects whose real size differs from fileSize, but the
+        // client picks totalChunks; cap it so we never presign more parts than the
+        // declared size could need.
+        long maxParts = Math.max(1, (req.getFileSize() + MIN_PART_SIZE - 1) / MIN_PART_SIZE);
+        if (req.getTotalChunks() > maxParts) {
+            throw new BadRequestException("Too many parts for a file of this size");
+        }
+
+        // ── Account quota — also before dedup: a deduplicated file still counts ──
+        User user = userService.findById(userId);
+        userService.checkQuota(user, req.getFileSize());
+
+        // ── App-wide ceiling — locks until this transaction commits, so the
+        //    session or file row written below is visible to the next check ──
+        storageCapacityService.checkCapacity(req.getFileSize());
+
         // ── Deduplication check ──────────────────────────────────────────────
         if (req.getHash() != null) {
             var existing = physicalFileRepository.findByHash(req.getHash());
@@ -70,12 +100,6 @@ public class ChunkUploadService {
         }
 
         // ── Normal path ──────────────────────────────────────────────────────
-        User user = userService.findById(userId);
-        if (user.getStorageUsed() + req.getFileSize() > user.getStorageLimit()) {
-            throw new StorageQuotaException("Storage limit exceeded. Available: "
-                    + (user.getStorageLimit() - user.getStorageUsed()) + " bytes");
-        }
-
         String storageKey = userId + "/" + UUID.randomUUID();
         String s3UploadId = storageService.createMultipartUpload(storageKey, req.getContentType());
 

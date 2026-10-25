@@ -1,12 +1,16 @@
 package in.ilovemyfiles.user;
 
 import in.ilovemyfiles.common.NotFoundException;
+import in.ilovemyfiles.common.StorageQuotaException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.unit.DataSize;
 
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -14,6 +18,40 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+
+    @Value("${app.max-storage-per-user:75MB}")
+    private DataSize maxStoragePerUser;
+
+    // ── Storage quota ─────────────────────────────────────────────────────────
+
+    /** The account's limit: its own storage_limit, capped by app.max-storage-per-user. */
+    public long storageLimit(User user) {
+        return Math.min(user.getStorageLimit(), maxStoragePerUser.toBytes());
+    }
+
+    /**
+     * What counts against the limit: everything the account keeps in storage,
+     * including trash and older versions (see UserRepository#storedBytes). The
+     * storage_used column only tracks live files, so it isn't used for this.
+     */
+    public long storedBytes(UUID userId) {
+        return userRepository.storedBytes(userId);
+    }
+
+    /** Throws when storing {@code extraBytes} more would put the account over its limit. */
+    public void checkQuota(User user, long extraBytes) {
+        long limit = storageLimit(user);
+        long stored = storedBytes(user.getId());
+        if (stored + extraBytes > limit) {
+            throw new StorageQuotaException("Not enough space: " + mb(Math.max(0, limit - stored))
+                    + " of your " + mb(limit) + " is free");
+        }
+    }
+
+    public static String mb(long bytes) {
+        double value = bytes / (1024.0 * 1024.0);
+        return (value == Math.floor(value) ? String.valueOf((long) value) : String.format(Locale.ROOT, "%.1f", value)) + " MB";
+    }
 
     public User findById(UUID id) {
         return userRepository.findById(id)
@@ -83,8 +121,8 @@ public class UserService {
                 .id(user.getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .storageUsed(user.getStorageUsed())
-                .storageLimit(user.getStorageLimit())
+                .storageUsed(storedBytes(user.getId()))
+                .storageLimit(storageLimit(user))
                 .createdAt(user.getCreatedAt())
                 .build();
     }

@@ -3,6 +3,9 @@ import { uploadPart } from '../api/transfer';
 import type { FileItem } from '../types';
 
 export const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB per part (S3 multipart minimum)
+// Largest file anyone may upload; must match app.max-upload-size on the backend,
+// which enforces it (this copy only lets the UI refuse early).
+export const MAX_UPLOAD_SIZE = 75 * 1024 * 1024; // 75 MB, the same as the per-account cap
 const PARALLEL = 3;                         // upload 3 parts at a time
 const MAX_RETRIES = 2;                      // retry a failed part up to 2 extra times
 

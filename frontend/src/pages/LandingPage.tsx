@@ -5,8 +5,13 @@ import { Folder, FolderPlus, Home, Upload, X } from 'lucide-react';
 import { FileIcon } from '../components/FileIcon';
 import { formatBytes, formatRelativeDate } from '../utils/format';
 
-const REPO_URL = 'https://github.com/Piyusss/ilovemyfiles.in';
-const AUTHOR_URL = 'https://www.linkedin.com/in/piy777sus';
+// Footer links, shown as plain text (no icons).
+const footerLinks = [
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/in/piy777sus' },
+  { label: 'GitHub', href: 'https://github.com/Piyusss' },
+  { label: 'YouTube', href: 'https://www.youtube.com/@whyn0tdp/videos' },
+  { label: 'Source code', href: 'https://github.com/Piyusss/ilovemyfiles.in' },
+];
 
 const container = 'mx-auto w-full max-w-[1150px] px-5 sm:px-6';
 
@@ -45,12 +50,12 @@ const steps = [
   {
     title: 'Hashing',
     body: 'Your browser fingerprints each file before sending it. If the same content is already stored, nothing is uploaded.',
-    facts: ['SHA-256', 'Files up to 500 MB'],
+    facts: ['SHA-256'],
   },
   {
     title: 'Uploading',
     body: 'Files are split into parts and sent in parallel. A part that fails is retried on its own, so the file doesn\'t start over.',
-    facts: ['5 MB parts', '3 at a time', '2 retries per part'],
+    facts: ['5 MB parts, 3 at a time', '2 retries per part'],
   },
   {
     title: 'Versioning',
@@ -64,7 +69,7 @@ const steps = [
   },
 ];
 
-const providers = ['Vercel', 'Render', 'Neon', 'Upstash', 'Backblaze B2', 'Clerk'];
+const providers = ['Vercel', 'Render', 'Neon', 'Redis Cloud', 'Cloudflare R2', 'Clerk'];
 
 /* ── Product preview ──────────────────────────────────────────────────────────
    A miniature of the "My files" view in FilesPage: same labels, icons, colour
@@ -245,7 +250,7 @@ export function LandingPage() {
               Store, version and share your files.
             </h1>
             <p className="mt-6 max-w-[30rem] text-pretty text-[17px] leading-relaxed text-surface-500 sm:text-lg">
-              Every account gets 5&nbsp;GB, and files move directly between your browser and storage without passing
+              Every account gets 75&nbsp;MB, and files move directly between your browser and storage without passing
               through the app server.
             </p>
             <div className="mt-9 flex flex-wrap items-center gap-x-7 gap-y-4">
@@ -300,19 +305,15 @@ export function LandingPage() {
 
       <footer className={container}>
         <div className="flex flex-col gap-3 border-t border-surface-800 py-8 text-sm text-surface-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            An educational project by{' '}
-            <a href={AUTHOR_URL} target="_blank" rel="noreferrer noopener" className={footerLink}>
-              Piyush Raj
-            </a>
-          </p>
+          <p>An educational project by Piyush Raj</p>
           <ul className="flex flex-wrap gap-x-6 gap-y-2">
-            <li>
-              <a href={REPO_URL} target="_blank" rel="noreferrer noopener" className={footerLink}>
-                Source code
-              </a>
-            </li>
-            <li>Built with React and Spring Boot</li>
+            {footerLinks.map((link) => (
+              <li key={link.label}>
+                <a href={link.href} target="_blank" rel="noreferrer noopener" className={footerLink}>
+                  {link.label}
+                </a>
+              </li>
+            ))}
           </ul>
         </div>
       </footer>

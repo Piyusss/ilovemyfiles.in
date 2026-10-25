@@ -8,7 +8,7 @@ import {
   Link, Copy, Check, Plus, Pencil, Eye, FolderInput,
 } from 'lucide-react';
 import { fileApi, folderApi, versionApi, shareApi } from '../api';
-import { chunkedUpload } from '../utils/chunkedUpload';
+import { chunkedUpload, MAX_UPLOAD_SIZE } from '../utils/chunkedUpload';
 import type { FileItem, FileVersion, FolderItem, ShareLink } from '../types';
 import { formatBytes, formatRelativeDate, triggerUrlDownload } from '../utils/format';
 import { FileIcon } from '../components/FileIcon';
@@ -269,17 +269,26 @@ export function FilesPage() {
   // ── upload ───────────────────────────────────────────────────────────────────
   const handleFiles = useCallback(
     (selectedFiles: File[]) => {
-      const items: UploadItem[] = selectedFiles.map((file) => ({
-        id: crypto.randomUUID(),
-        file,
-        progress: 0,
-        status: 'uploading' as const,
-        controller: new AbortController(),
-      }));
+      const items: UploadItem[] = selectedFiles.map((file) => {
+        // Oversized files fail right away, before any request is made.
+        const tooLarge = file.size > MAX_UPLOAD_SIZE;
+        return {
+          id: crypto.randomUUID(),
+          file,
+          progress: 0,
+          status: tooLarge ? ('error' as const) : ('uploading' as const),
+          error: tooLarge ? `Files larger than ${formatBytes(MAX_UPLOAD_SIZE)} can't be uploaded` : undefined,
+          controller: new AbortController(),
+        };
+      });
 
       setUploads((prev) => [...prev, ...items]);
 
       items.forEach((item) => {
+        if (item.status === 'error') {
+          setTimeout(() => setUploads((prev) => prev.filter((u) => u.id !== item.id)), 6000);
+          return;
+        }
         chunkedUpload(
           item.file,
           folderId,
@@ -512,7 +521,7 @@ export function FilesPage() {
         <p className={`text-sm font-medium transition-colors ${isDragging ? 'text-brand-300' : 'text-surface-400'}`}>
           {isDragging ? 'Drop files here' : 'Drag & drop, or click to upload'}
         </p>
-        <p className="text-xs text-surface-600 mt-0.5">Any file type · Max 2 GB</p>
+        <p className="text-xs text-surface-600 mt-0.5">Any file type · Max {formatBytes(MAX_UPLOAD_SIZE)}</p>
       </div>
 
       {/* ── Upload Queue ───────────────────────────────────────────────────── */}

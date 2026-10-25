@@ -45,7 +45,8 @@ public class FolderService {
         return created;
     }
 
-    @Cacheable(value = "folders", key = "#userId + ':' + (#parentFolderId ?: 'root')")
+    // Very long listings skip the cache so no single entry can eat much of Redis' memory.
+    @Cacheable(value = "folders", key = "#userId + ':' + (#parentFolderId ?: 'root')", unless = "#result.size() > 1000")
     public List<FolderDto> list(UUID parentFolderId, UUID userId) {
         List<FolderEntity> folders = parentFolderId != null
                 ? folderRepository.findByUserIdAndParentFolderIdOrderByNameAsc(userId, parentFolderId)

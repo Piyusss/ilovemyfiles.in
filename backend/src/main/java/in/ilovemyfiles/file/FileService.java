@@ -153,7 +153,8 @@ public class FileService {
 
     // ── List / get ───────────────────────────────────────────────────────────
 
-    @Cacheable(value = "files", key = "#userId + ':' + (#folderId ?: 'root')")
+    // Very long listings skip the cache so no single entry can eat much of Redis' memory.
+    @Cacheable(value = "files", key = "#userId + ':' + (#folderId ?: 'root')", unless = "#result.size() > 1000")
     public List<FileDto> list(UUID userId, UUID folderId) {
         List<FileEntity> files = folderId != null
                 ? fileRepository.findByUserIdAndFolderIdAndIsDeletedFalseOrderByCreatedAtDesc(userId, folderId)
@@ -163,7 +164,7 @@ public class FileService {
         return files.stream().map(this::toDto).collect(Collectors.toList());
     }
 
-    @Cacheable(value = "files-all", key = "#userId")
+    @Cacheable(value = "files-all", key = "#userId", unless = "#result.size() > 1000")
     public List<FileDto> listAll(UUID userId) {
         return fileRepository.findByUserIdAndIsDeletedFalseOrderByCreatedAtDesc(userId)
                 .stream().map(this::toDto).collect(Collectors.toList());
@@ -232,12 +233,14 @@ public class FileService {
     public void checkStorageWarning(UUID userId) {
         try {
             User u = userService.findById(userId);
-            if (u.getStorageLimit() > 0) {
-                int pct = (int) ((u.getStorageUsed() * 100) / u.getStorageLimit());
+            long limit = userService.storageLimit(u);
+            if (limit > 0) {
+                int pct = (int) ((userService.storedBytes(userId) * 100) / limit);
                 if (pct >= 80 && pct < 100) {
                     notificationService.send(userId, NotificationService.STORAGE_WARNING,
                             "Storage almost full",
-                            "You've used " + pct + "% of your 5 GB. Consider freeing up space.");
+                            "You've used " + pct + "% of your " + UserService.mb(limit)
+                                    + ". Consider freeing up space.");
                 }
             }
         } catch (Exception ignored) {}

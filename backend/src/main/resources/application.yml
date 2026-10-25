@@ -70,6 +70,18 @@ cors:
 app:
   share-base-url: ${APP_SHARE_BASE_URL:http://localhost:5173}
   version-retention: ${VERSION_RETENTION:10}
+  # The cache stops writing new entries once Redis reports this much memory in use
+  # (reads keep working). 24MB leaves headroom under Redis Cloud's free 30 MB.
+  redis-memory-limit: ${REDIS_MEMORY_LIMIT:24MB}
+  # App-wide ceiling on everything in the bucket. When reached, nobody can upload
+  # until files are deleted. Kept below R2's 10 GB free tier as a safety margin.
+  max-total-storage: ${MAX_TOTAL_STORAGE:9GB}
+  # Most any account may keep in storage, counting trash and older versions
+  # (binary units: 75MB = 75 × 1024 × 1024 bytes). Caps each user's storage_limit.
+  max-storage-per-user: ${MAX_STORAGE_PER_USER:75MB}
+  # Largest single file anyone may upload; no larger than the account cap.
+  # The frontend's MAX_UPLOAD_SIZE in utils/chunkedUpload.ts mirrors this value.
+  max-upload-size: ${MAX_UPLOAD_SIZE:75MB}
 
 # Logging
 logging:

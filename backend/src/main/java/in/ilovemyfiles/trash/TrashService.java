@@ -2,7 +2,6 @@ package in.ilovemyfiles.trash;
 
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.NotFoundException;
-import in.ilovemyfiles.common.StorageQuotaException;
 import in.ilovemyfiles.file.FileEntity;
 import in.ilovemyfiles.file.FileRepository;
 import in.ilovemyfiles.file.FileService;
@@ -73,11 +72,8 @@ public class TrashService {
         FileEntity file = fileRepository.findByIdAndUserIdAndIsDeletedTrue(fileId, userId)
                 .orElseThrow(() -> new NotFoundException("File not found in trash"));
 
-        // Check storage limit
-        var user = userService.findById(userId);
-        if (user.getStorageUsed() + file.getSize() > user.getStorageLimit()) {
-            throw new StorageQuotaException("Storage limit exceeded - cannot restore file");
-        }
+        // No quota check: trashed files already count against the limit
+        // (UserService#storedBytes), so restoring adds no stored bytes.
 
         // The file's folder may have been deleted while it sat in trash (folder
         // delete soft-deletes its files but hard-deletes the folder itself).

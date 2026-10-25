@@ -119,8 +119,8 @@ public class AnalyticsService {
                 .collect(Collectors.toList());
 
         return AnalyticsDto.builder()
-                .storageUsed(user.getStorageUsed())
-                .storageLimit(user.getStorageLimit())
+                .storageUsed(userService.storedBytes(userId))
+                .storageLimit(userService.storageLimit(user))
                 .filesCount(filesCount)
                 .foldersCount(foldersCount)
                 .largestFiles(largestFiles)

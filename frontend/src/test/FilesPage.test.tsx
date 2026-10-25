@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { FilesPage } from '../pages/FilesPage';
 import * as api from '../api';
+import { chunkedUpload, MAX_UPLOAD_SIZE } from '../utils/chunkedUpload';
 
 vi.mock('../api', () => ({
   fileApi: {
@@ -42,7 +43,9 @@ vi.mock('../api', () => ({
   },
 }));
 
-vi.mock('../utils/chunkedUpload', () => ({
+// Keep the real constants (e.g. MAX_UPLOAD_SIZE); only the upload itself is mocked.
+vi.mock('../utils/chunkedUpload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/chunkedUpload')>()),
   chunkedUpload: vi.fn(),
 }));
 
@@ -112,5 +115,27 @@ describe('FilesPage upload state machine', () => {
     await waitFor(() => {
       expect(screen.getByText('Projects')).toBeInTheDocument();
     });
+  });
+
+  it('refuses files over the size limit without starting an upload', () => {
+    const { container } = renderFilesPage();
+    const big = new File(['x'], 'lecture.mp4', { type: 'video/mp4' });
+    Object.defineProperty(big, 'size', { value: MAX_UPLOAD_SIZE + 1 });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [big] } });
+
+    expect(screen.getByText("Files larger than 75 MB can't be uploaded")).toBeInTheDocument();
+    expect(chunkedUpload).not.toHaveBeenCalled();
+  });
+
+  it('starts the upload for a file exactly at the limit', () => {
+    vi.mocked(chunkedUpload).mockReturnValue(new Promise(() => {}));
+    const { container } = renderFilesPage();
+    const ok = new File(['x'], 'notes.pdf', { type: 'application/pdf' });
+    Object.defineProperty(ok, 'size', { value: MAX_UPLOAD_SIZE });
+
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [ok] } });
+
+    expect(chunkedUpload).toHaveBeenCalledTimes(1);
   });
 });
