@@ -95,7 +95,7 @@ class ChunkUploadServiceTest {
         when(userService.findById(userId)).thenReturn(user);
         when(storageService.createMultipartUpload(anyString(), eq("video/mp4"))).thenReturn("s3-upload-id");
         when(storageService.presignUploadPart(anyString(), eq("s3-upload-id"), anyInt())).thenReturn("https://part-url");
-        when(sessionRepository.save(any())).thenAnswer(inv -> {
+        when(sessionRepository.saveAndFlush(any())).thenAnswer(inv -> {
             UploadSessionEntity session = inv.getArgument(0);
             session.setId(UUID.randomUUID());
             return session;
@@ -107,6 +107,20 @@ class ChunkUploadServiceTest {
         verify(storageCapacityService).checkCapacity(75 * MB);
         assertFalse(response.isDuplicate());
         assertEquals(15, response.getParts().size());
+    }
+
+    @Test
+    void abortsTheStorageUploadWhenTheSessionCannotBeSaved() {
+        when(userService.findById(userId)).thenReturn(new User());
+        when(physicalFileRepository.findByHash("a1b2c3")).thenReturn(Optional.empty());
+        when(storageService.createMultipartUpload(anyString(), eq("video/mp4"))).thenReturn("s3-upload-id");
+        when(sessionRepository.saveAndFlush(any())).thenThrow(new RuntimeException("value too long"));
+
+        assertThrows(RuntimeException.class, () -> service.init(request(MB, 1), userId));
+
+        // Nothing is left dangling in storage.
+        verify(storageService).abortMultipartUpload(anyString(), eq("s3-upload-id"));
+        verify(storageService, never()).presignUploadPart(anyString(), anyString(), anyInt());
     }
 
     @Test

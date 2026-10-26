@@ -103,12 +103,24 @@ public class ChunkUploadService {
         String storageKey = userId + "/" + UUID.randomUUID();
         String s3UploadId = storageService.createMultipartUpload(storageKey, req.getContentType());
 
-        UploadSessionEntity session = sessionRepository.save(UploadSessionEntity.builder()
-                .userId(userId).fileName(req.getFileName()).fileSize(req.getFileSize())
-                .totalChunks(req.getTotalChunks()).contentType(req.getContentType())
-                .folderId(req.getFolderId()).storageKey(storageKey)
-                .s3UploadId(s3UploadId).hash(req.getHash())
-                .build());
+        // Flush now so a failed insert surfaces here, not at commit, and the
+        // storage-side upload can be aborted instead of left dangling.
+        UploadSessionEntity session;
+        try {
+            session = sessionRepository.saveAndFlush(UploadSessionEntity.builder()
+                    .userId(userId).fileName(req.getFileName()).fileSize(req.getFileSize())
+                    .totalChunks(req.getTotalChunks()).contentType(req.getContentType())
+                    .folderId(req.getFolderId()).storageKey(storageKey)
+                    .s3UploadId(s3UploadId).hash(req.getHash())
+                    .build());
+        } catch (RuntimeException e) {
+            try {
+                storageService.abortMultipartUpload(storageKey, s3UploadId);
+            } catch (Exception abortError) {
+                log.warn("Abort multipart failed for {}: {}", storageKey, abortError.getMessage());
+            }
+            throw e;
+        }
 
         List<PartUrl> parts = new ArrayList<>(req.getTotalChunks());
         for (int partNumber = 1; partNumber <= req.getTotalChunks(); partNumber++) {

@@ -185,6 +185,17 @@ class FileServiceIntegrationTest {
         assertDoesNotThrow(() -> storageCapacityService.checkCapacity(1));
     }
 
+    @Test
+    void uploadSession_storesR2LengthUploadIds() {
+        // Cloudflare R2 multipart upload ids are ~343 characters long.
+        String r2UploadId = "A".repeat(343);
+        UploadSessionEntity upload = session(1024L, "in_progress", LocalDateTime.now());
+        upload.setS3UploadId(r2UploadId);
+        UploadSessionEntity saved = sessionRepository.saveAndFlush(upload);
+
+        assertEquals(r2UploadId, sessionRepository.findById(saved.getId()).orElseThrow().getS3UploadId());
+    }
+
     private UploadSessionEntity session(long size, String status, LocalDateTime createdAt) {
         return UploadSessionEntity.builder()
             .userId(userId).fileName("upload.bin").fileSize(size).totalChunks(1)
