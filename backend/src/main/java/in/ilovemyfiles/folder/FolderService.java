@@ -5,9 +5,12 @@ import in.ilovemyfiles.common.NotFoundException;
 import in.ilovemyfiles.file.FileEntity;
 import in.ilovemyfiles.file.FileRepository;
 import in.ilovemyfiles.user.UserService;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +22,11 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FolderService {
 
     private final FolderRepository folderRepository;
+    private final CacheManager cacheManager;
     private final FileRepository fileRepository;
     private final UserService userService;
     private final ActivityService activityService;
@@ -80,7 +85,7 @@ public class FolderService {
         FolderEntity root = folderRepository.findByIdAndUserId(folderId, userId)
                 .orElseThrow(() -> new NotFoundException("Folder not found"));
         activityService.log(userId, ActivityService.FOLDER_DELETE, root.getName(), null);
-        evictFolderCache(userId, root.getParentFolderId());
+        clearFolderCacheEntry(userId, root.getParentFolderId());
 
         // Collect all nested folder IDs (BFS)
         List<UUID> allFolderIds = new ArrayList<>();
@@ -115,7 +120,7 @@ public class FolderService {
     public FolderDto rename(UUID folderId, UUID userId, String newName) {
         FolderEntity folder = folderRepository.findByIdAndUserId(folderId, userId)
                 .orElseThrow(() -> new NotFoundException("Folder not found"));
-        evictFolderCache(userId, folder.getParentFolderId());
+        clearFolderCacheEntry(userId, folder.getParentFolderId());
         folder.setName(newName.trim());
         return toDtoWithCount(folderRepository.save(folder));
     }
@@ -125,9 +130,21 @@ public class FolderService {
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
 
-    @CacheEvict(value = "folders", key = "#userId + ':' + (#parentFolderId ?: 'root')")
-    public void evictFolderCache(UUID userId, UUID parentFolderId) {
-        // eviction only
+    /**
+     * delete() and rename() need to evict a folder listing, but calling an
+     * @CacheEvict method from inside this bean bypasses the AOP proxy, so the
+     * annotation never fired: deleted/renamed folders stayed in the cached
+     * listing until the 10-minute TTL. Evict programmatically instead, and
+     * never let a cache failure break the operation itself.
+     */
+    private void clearFolderCacheEntry(UUID userId, UUID parentFolderId) {
+        try {
+            String key = userId + ":" + (parentFolderId != null ? parentFolderId.toString() : "root");
+            Cache cache = cacheManager.getCache("folders");
+            if (cache != null) cache.evict(key);
+        } catch (RuntimeException e) {
+            log.warn("Folder cache evict failed for user {}: {}", userId, e.getMessage());
+        }
     }
 
     private void collectFolderIds(UUID folderId, UUID userId, List<UUID> ids) {

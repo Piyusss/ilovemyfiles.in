@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useCallback } from 'react';
 import { useAuth as useClerkAuth, useUser } from '@clerk/clerk-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UserDto } from '../types';
 import { userApi } from '../api';
 
@@ -14,36 +15,38 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { isSignedIn, isLoaded } = useClerkAuth();
   const { user: clerkUser } = useUser();
-  const [user, setUser] = useState<UserDto | null>(null);
+  const queryClient = useQueryClient();
 
-  // Fetch our user profile (storage quota etc.) whenever Clerk auth state changes
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    if (isSignedIn) {
-      // Small delay so Clerk has set window.Clerk.session before our axios interceptor runs
-      const t = setTimeout(() => {
-        userApi.getMe()
-          .then((r) => setUser(r.data))
-          .catch(() => setUser(null));
-      }, 100);
-      return () => clearTimeout(t);
-    } else {
-      setUser(null);
-    }
-  }, [isSignedIn, isLoaded, clerkUser?.id]);
+  // The profile (storage used / limit) lives in React Query under ['user'],
+  // so the invalidateQueries({ queryKey: ['user'] }) calls fired after
+  // uploads, deletes and restores refetch it and the sidebar meter stays
+  // current. The previous version fetched once into useState: those
+  // invalidations matched nothing, and a single failed fetch (e.g. racing
+  // Clerk's session setup right after sign-in, or hitting a cold backend)
+  // left the meter stuck at 0% until a full page reload.
+  const userQuery = useQuery({
+    queryKey: ['user', clerkUser?.id ?? 'session'],
+    queryFn: () => userApi.getMe().then((r) => r.data),
+    enabled: isLoaded && !!isSignedIn,
+    // Right after sign-in the first request can go out before
+    // window.Clerk.session exists and come back 401 — retry instead of
+    // giving up for the rest of the session.
+    retry: 3,
+    retryDelay: (attempt) => 500 * 2 ** attempt,
+  });
 
   const refreshUser = useCallback(async () => {
-    try {
-      const response = await userApi.getMe();
-      setUser(response.data);
-    } catch {
-      // ignore
-    }
-  }, []);
+    await queryClient.invalidateQueries({ queryKey: ['user'] });
+  }, [queryClient]);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading: !isLoaded, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user: (isSignedIn ? userQuery.data : undefined) ?? null,
+        isLoading: !isLoaded,
+        refreshUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

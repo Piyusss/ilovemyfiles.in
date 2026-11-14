@@ -3,7 +3,8 @@ import api from './client';
 import type { AnalyticsData, FileItem, FileVersion, FolderItem, JobStatus, PublicFileInfo, SearchResult, ShareLink, ShareLinkWithFile, TrashItem, UserDto } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
-const publicApi = axios.create({ baseURL: BASE_URL });
+// Same 30s timeout as the authed client: never hang forever on a cold server.
+const publicApi = axios.create({ baseURL: BASE_URL, timeout: 30_000 });
 
 // Auth is handled entirely by Clerk — no custom auth API needed.
 

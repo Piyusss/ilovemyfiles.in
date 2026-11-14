@@ -18,7 +18,11 @@ const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY as string | u
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      // The backend sleeps on Render's free tier and a JVM cold start can
+      // take a while. Paired with the 30s axios timeout these retries keep
+      // polling for roughly two minutes instead of hanging on one attempt.
+      retry: 3,
+      retryDelay: (attempt) => Math.min(15_000, 1_500 * 2 ** attempt),
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,

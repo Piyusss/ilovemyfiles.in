@@ -15,6 +15,10 @@ declare global {
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  // Axios defaults to NO timeout, so a sleeping/cold backend left every
+  // query "loading" forever. Fail after 30s and let React Query's retry
+  // with backoff (see App.tsx) keep knocking while the server wakes up.
+  timeout: 30_000,
 });
 
 // Attach Clerk's session token to every request.

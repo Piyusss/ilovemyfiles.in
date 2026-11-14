@@ -7,8 +7,10 @@ export function formatBytes(bytes: number, decimals: number = 1): string {
 }
 
 export function formatPercentage(used: number, total: number): number {
-  if (total === 0) return 0;
-  return Math.round((used / total) * 100);
+  if (total === 0 || used <= 0) return 0;
+  // Never round real usage down to "0%" — a few small files should read as
+  // 1%, not make the storage meter look broken.
+  return Math.max(1, Math.round((used / total) * 100));
 }
 
 export function getFileIconType(contentType: string): string {

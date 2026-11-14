@@ -97,6 +97,19 @@ export function FilesPage() {
   const files: FileItem[] = filesQuery.data ?? [];
   const breadcrumb: FolderItem[] = breadcrumbQuery.data ?? [];
   const isLoading = foldersQuery.isLoading || filesQuery.isLoading;
+  const loadFailed = foldersQuery.isError || filesQuery.isError;
+
+  // ── slow-load hint ───────────────────────────────────────────────────────
+  // After 8s of loading, say why: the free-tier backend is likely waking up.
+  const [slowLoad, setSlowLoad] = useState(false);
+  useEffect(() => {
+    if (!isLoading) {
+      setSlowLoad(false);
+      return;
+    }
+    const t = setTimeout(() => setSlowLoad(true), 8000);
+    return () => clearTimeout(t);
+  }, [isLoading]);
 
   // ── focus effects ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -615,8 +628,28 @@ export function FilesPage() {
 
       {/* ── Main Content ───────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="glass-card flex items-center justify-center py-20">
+        <div className="glass-card flex flex-col items-center justify-center gap-3 py-20">
           <Loader2 className="w-7 h-7 text-surface-500 animate-spin" />
+          {slowLoad && (
+            <p className="text-sm text-surface-500 text-center px-6">
+              Waking the server after idle — the first load can take a minute.
+            </p>
+          )}
+        </div>
+      ) : loadFailed ? (
+        <div className="glass-card flex flex-col items-center justify-center py-20 text-center">
+          <AlertCircle className="w-8 h-8 text-surface-500 mb-3" />
+          <p className="text-lg font-medium text-surface-300">Couldn't load your files</p>
+          <p className="text-sm text-surface-500 mt-1">The server may still be waking up.</p>
+          <button
+            onClick={() => {
+              foldersQuery.refetch();
+              filesQuery.refetch();
+            }}
+            className="btn-primary text-sm px-4 py-2 mt-4"
+          >
+            Try again
+          </button>
         </div>
       ) : isEmpty ? (
         <div className="glass-card flex flex-col items-center justify-center py-20 text-center">

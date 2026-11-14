@@ -247,11 +247,18 @@ public class FileService {
     }
 
     private void clearFilesCacheEntry(UUID userId, UUID folderId) {
-        String folderKey = userId.toString() + ":" + (folderId != null ? folderId.toString() : "root");
-        Cache c = cacheManager.getCache("files");
-        if (c != null) c.evict(folderKey);
-        Cache all = cacheManager.getCache("files-all");
-        if (all != null) all.evict(userId.toString());
+        // Programmatic evicts bypass the CacheErrorHandler in RedisConfig (it
+        // only guards annotation-driven cache operations), so without this
+        // catch a Redis outage would turn rename/move/delete into 500s.
+        try {
+            String folderKey = userId.toString() + ":" + (folderId != null ? folderId.toString() : "root");
+            Cache c = cacheManager.getCache("files");
+            if (c != null) c.evict(folderKey);
+            Cache all = cacheManager.getCache("files-all");
+            if (all != null) all.evict(userId.toString());
+        } catch (RuntimeException e) {
+            log.warn("File cache evict failed for user {}: {}", userId, e.getMessage());
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
