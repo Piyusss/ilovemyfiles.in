@@ -115,10 +115,13 @@ export const publicShareApi = {
   info: (token: string) =>
     publicApi.get<PublicFileInfo>(`/share/${token}`),
 
+  // POST, so the password travels in the body, never in the URL (where proxies
+  // log it and browsers keep it in history).
   download: (token: string, password?: string) =>
-    publicApi.get<{ url: string; fileName: string }>(`/share/${token}/download`, {
-      params: password ? { password } : {},
-    }),
+    publicApi.post<{ url: string; fileName: string }>(
+      `/share/${token}/download`,
+      password ? { password } : {},
+    ),
 };
 
 // Folder API

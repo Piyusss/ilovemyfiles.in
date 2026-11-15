@@ -198,6 +198,21 @@ class FileServiceIntegrationTest {
     }
 
     @Test
+    void reservations_countOnlyThisUsersRecentUnfinishedUploads() {
+        sessionRepository.save(session(500L, "in_progress", LocalDateTime.now()));
+        sessionRepository.save(session(700L, "in_progress", LocalDateTime.now()));
+        sessionRepository.save(session(9000L, "in_progress", LocalDateTime.now().minusDays(2))); // abandoned
+        sessionRepository.save(session(8000L, "completed", LocalDateTime.now()));
+        UploadSessionEntity someoneElses = session(4000L, "in_progress", LocalDateTime.now());
+        someoneElses.setUserId(createUser());
+        sessionRepository.save(someoneElses);
+        sessionRepository.flush();
+
+        assertEquals(1200L, sessionRepository.reservedBytes(userId));
+        assertEquals(2L, sessionRepository.countActive(userId));
+    }
+
+    @Test
     void reuploadAfterDeletingAnOldVersion_getsTheNextNumberInsteadOfColliding() {
         FileDto file = fileService.createOrUpdateFile("notes.txt", 1L, "text/plain", null, userId, "key/n1", null, false);
         fileService.createOrUpdateFile("notes.txt", 2L, "text/plain", null, userId, "key/n2", null, false);

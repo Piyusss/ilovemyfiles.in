@@ -103,6 +103,20 @@ describe('SharePage', () => {
     });
   });
 
+  it('shows the server message when the link is rate limited', async () => {
+    vi.mocked(api.publicShareApi.info).mockResolvedValue({ data: openInfo } as never);
+    vi.mocked(api.publicShareApi.download).mockRejectedValue({
+      response: { status: 429, data: { message: 'Too many downloads. Try again in a minute.' } },
+    });
+
+    renderSharePage();
+    await userEvent.click(await screen.findByRole('button', { name: /download/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/too many downloads/i)).toBeInTheDocument();
+    });
+  });
+
   it('shows not-found state when link does not exist', async () => {
     vi.mocked(api.publicShareApi.info).mockRejectedValue({ response: { status: 404 } });
 

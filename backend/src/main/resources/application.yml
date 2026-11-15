@@ -73,6 +73,10 @@ app:
   # Clerk user ids (comma-separated) allowed to view and trigger the maintenance
   # jobs (/api/jobs). Empty means nobody; the jobs still run on their schedule.
   admin-clerk-ids: ${ADMIN_CLERK_IDS:}
+  # Proxies in front of the app that append to X-Forwarded-For. Render: 2
+  # (Cloudflare, then Render's proxy). 0 ignores the header and uses the
+  # connection's address. Used to find the client IP for rate limiting.
+  trusted-proxy-hops: ${TRUSTED_PROXY_HOPS:2}
   # The cache stops writing new entries once Redis reports this much memory in use
   # (reads keep working). 24MB leaves headroom under Redis Cloud's free 30 MB.
   redis-memory-limit: ${REDIS_MEMORY_LIMIT:24MB}

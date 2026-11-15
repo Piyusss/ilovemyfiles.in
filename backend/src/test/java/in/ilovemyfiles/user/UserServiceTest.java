@@ -56,15 +56,24 @@ class UserServiceTest {
     void allowsAnUploadThatFillsTheAccountExactly() {
         when(userRepository.storedBytes(user.getId())).thenReturn(70 * MB);
 
-        assertDoesNotThrow(() -> userService.checkQuota(user, 5 * MB));
+        assertDoesNotThrow(() -> userService.checkQuota(user, 5 * MB, 0));
     }
 
     @Test
     void rejectsAnUploadThatWouldGoOverTheLimit() {
         when(userRepository.storedBytes(user.getId())).thenReturn(70 * MB + MB / 2);
 
-        var ex = assertThrows(StorageQuotaException.class, () -> userService.checkQuota(user, 5 * MB));
+        var ex = assertThrows(StorageQuotaException.class, () -> userService.checkQuota(user, 5 * MB, 0));
         assertEquals("Not enough space: 4.5 MB of your 75 MB is free", ex.getMessage());
+    }
+
+    @Test
+    void spaceHeldByUnfinishedUploadsCountsAndIsExplained() {
+        when(userRepository.storedBytes(user.getId())).thenReturn(10 * MB);
+
+        var ex = assertThrows(StorageQuotaException.class, () -> userService.checkQuota(user, 10 * MB, 60 * MB));
+        assertEquals("Not enough space: 5 MB of your 75 MB is free (60 MB is held by uploads in progress)",
+                ex.getMessage());
     }
 
     // ── Clerk id -> user id ──────────────────────────────────────────────────

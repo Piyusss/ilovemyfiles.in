@@ -4,6 +4,7 @@ import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.BadRequestException;
 import in.ilovemyfiles.common.NotFoundException;
 import in.ilovemyfiles.common.StorageQuotaException;
+import in.ilovemyfiles.common.TooManyRequestsException;
 import in.ilovemyfiles.file.FileDto;
 import in.ilovemyfiles.file.FileService;
 import in.ilovemyfiles.file.PhysicalFileEntity;
@@ -23,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.unit.DataSize;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -90,12 +92,13 @@ class ChunkUploadServiceTest {
         User user = new User();
         when(userService.findById(userId)).thenReturn(user);
         doThrow(new StorageQuotaException("Not enough space: 2 MB of your 75 MB is free"))
-                .when(userService).checkQuota(user, 10 * MB);
+                .when(userService).checkQuota(user, 10 * MB, 0L);
 
         assertThrows(StorageQuotaException.class, () -> service.init(request(10 * MB, 2), userId));
 
         // Checked before dedup, so a duplicate can't slip past a full account either.
-        verifyNoInteractions(physicalFileRepository, storageService, sessionRepository);
+        verifyNoInteractions(physicalFileRepository, storageService);
+        verify(sessionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -107,7 +110,8 @@ class ChunkUploadServiceTest {
         assertThrows(StorageQuotaException.class, () -> service.init(request(MB, 1), userId));
 
         // Not even a duplicate of already-stored content gets through.
-        verifyNoInteractions(physicalFileRepository, storageService, sessionRepository);
+        verifyNoInteractions(physicalFileRepository, storageService);
+        verify(sessionRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -118,7 +122,7 @@ class ChunkUploadServiceTest {
 
         InitUploadResponse response = service.init(request(75 * MB, 15), userId);
 
-        verify(userService).checkQuota(user, 75 * MB);
+        verify(userService).checkQuota(user, 75 * MB, 0L);
         verify(storageCapacityService).checkCapacity(75 * MB);
         assertFalse(response.isDuplicate());
         assertEquals(15, response.getParts().size());
@@ -153,6 +157,48 @@ class ChunkUploadServiceTest {
 
         assertThrows(NotFoundException.class, () -> service.init(req, userId));
         verifyNoInteractions(physicalFileRepository, storageService, sessionRepository);
+    }
+
+    // ── Unfinished uploads ───────────────────────────────────────────────────
+
+    @Test
+    void countsTheUsersUnfinishedUploadsAgainstTheirQuota() {
+        User user = new User();
+        when(userService.findById(userId)).thenReturn(user);
+        when(sessionRepository.reservedBytes(userId)).thenReturn(70 * MB);
+        doThrow(new StorageQuotaException("Not enough space"))
+                .when(userService).checkQuota(user, 10 * MB, 70 * MB);
+
+        // Unfinished uploads used to count for nothing: one account could reserve
+        // the whole app-wide capacity and block everyone's uploads.
+        assertThrows(StorageQuotaException.class, () -> service.init(request(10 * MB, 2), userId));
+        verifyNoInteractions(storageService);
+    }
+
+    @Test
+    void refusesAnotherUploadWhenTooManyAreUnfinished() {
+        when(sessionRepository.countActive(userId)).thenReturn((long) ChunkUploadService.MAX_ACTIVE_UPLOADS);
+
+        assertThrows(TooManyRequestsException.class, () -> service.init(request(MB, 1), userId));
+        verifyNoInteractions(userService, storageService);
+    }
+
+    @Test
+    void startingTheSameUploadAgainReplacesTheUnfinishedAttempt() {
+        UploadSessionEntity abandoned = UploadSessionEntity.builder()
+                .id(UUID.randomUUID()).userId(userId).fileName("lecture.mp4").fileSize(MB)
+                .totalChunks(1).contentType("video/mp4").hash(HASH)
+                .storageKey(userId + "/old").s3UploadId("old-upload").build();
+        when(sessionRepository.findByUserIdAndStatusAndHashAndFileNameAndFolderIdIsNull(
+                userId, "in_progress", HASH, "lecture.mp4")).thenReturn(List.of(abandoned));
+        when(userService.findById(userId)).thenReturn(new User());
+        storageAcceptsANewUpload();
+
+        service.init(request(MB, 1), userId);
+
+        verify(sessionRepository).deleteAll(List.of(abandoned));
+        // No transaction in a unit test, so the abort runs at once (after commit in the app).
+        verify(storageService).abortMultipartUpload(userId + "/old", "old-upload");
     }
 
     // ── Dedup ────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ package in.ilovemyfiles.chunk;
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.BadRequestException;
 import in.ilovemyfiles.common.NotFoundException;
+import in.ilovemyfiles.common.TooManyRequestsException;
 import in.ilovemyfiles.notification.NotificationService;
 import in.ilovemyfiles.file.FileDto;
 import in.ilovemyfiles.file.FileService;
@@ -18,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.unit.DataSize;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 
@@ -49,6 +52,10 @@ public class ChunkUploadService {
     // S3 parts are at least 5 MB (only the last may be smaller).
     private static final long MIN_PART_SIZE = 5L * 1024 * 1024;
 
+    // Unfinished uploads one user may have open at once. Each opens a multipart
+    // upload in storage, so this caps how many a single account can start.
+    static final int MAX_ACTIVE_UPLOADS = 50;
+
     @Value("${app.max-upload-size:75MB}")
     private DataSize maxUploadSize;
 
@@ -77,9 +84,19 @@ public class ChunkUploadService {
             throw new NotFoundException("Folder not found");
         }
 
-        // ── Account quota — also before dedup: a deduplicated file still counts ──
+        // ── Starting the same upload again replaces its unfinished attempt ─────
+        supersedeEarlierAttempts(req, userId);
+
+        if (sessionRepository.countActive(userId) >= MAX_ACTIVE_UPLOADS) {
+            throw new TooManyRequestsException(
+                    "Too many uploads in progress. Let some finish or cancel them first.");
+        }
+
+        // ── Account quota — also before dedup: a deduplicated file still counts.
+        //    Uploads still in progress count too: otherwise one account could
+        //    reserve the whole app-wide capacity and block everyone's uploads. ──
         User user = userService.findById(userId);
-        userService.checkQuota(user, req.getFileSize());
+        userService.checkQuota(user, req.getFileSize(), sessionRepository.reservedBytes(userId));
 
         // ── App-wide ceiling — locks until this transaction commits, so the
         //    session or file row written below is visible to the next check ──
@@ -151,6 +168,46 @@ public class ChunkUploadService {
                 .parts(parts)
                 .duplicate(false)
                 .build();
+    }
+
+    /**
+     * An unfinished upload of the same content, under the same name, into the
+     * same folder, is an abandoned earlier attempt of this one (a closed tab, a
+     * crash). Its reservation would hold quota for a day, so drop it and abort
+     * its storage-side upload once this transaction commits.
+     */
+    private void supersedeEarlierAttempts(InitUploadRequest req, UUID userId) {
+        if (req.getHash() == null) return;
+        List<UploadSessionEntity> earlier = req.getFolderId() != null
+                ? sessionRepository.findByUserIdAndStatusAndHashAndFileNameAndFolderId(
+                        userId, "in_progress", req.getHash(), req.getFileName(), req.getFolderId())
+                : sessionRepository.findByUserIdAndStatusAndHashAndFileNameAndFolderIdIsNull(
+                        userId, "in_progress", req.getHash(), req.getFileName());
+        if (earlier.isEmpty()) return;
+
+        sessionRepository.deleteAll(earlier);
+        sessionRepository.flush(); // so the quota check below no longer counts them
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    abortQuietly(earlier);
+                }
+            });
+        } else {
+            abortQuietly(earlier);
+        }
+    }
+
+    private void abortQuietly(List<UploadSessionEntity> sessions) {
+        for (UploadSessionEntity session : sessions) {
+            if (session.getS3UploadId() == null) continue;
+            try {
+                storageService.abortMultipartUpload(session.getStorageKey(), session.getS3UploadId());
+            } catch (Exception e) {
+                log.warn("Abort multipart failed for {}: {}", session.getStorageKey(), e.getMessage());
+            }
+        }
     }
 
     // ── Status (for resume) — which parts has storage already received? ───────

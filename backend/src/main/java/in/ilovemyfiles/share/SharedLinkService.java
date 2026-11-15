@@ -3,6 +3,7 @@ package in.ilovemyfiles.share;
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.ForbiddenException;
 import in.ilovemyfiles.common.NotFoundException;
+import in.ilovemyfiles.common.TooManyRequestsException;
 import in.ilovemyfiles.notification.NotificationService;
 import in.ilovemyfiles.file.FileEntity;
 import in.ilovemyfiles.file.FileRepository;
@@ -36,6 +37,7 @@ public class SharedLinkService {
     private final ActivityService activityService;
     private final NotificationService notificationService;
     private final StorageService storageService;
+    private final ShareAttemptLimiter attemptLimiter;
 
     @Value("${app.share-base-url:http://localhost:5173}")
     private String shareBaseUrl;
@@ -128,9 +130,14 @@ public class SharedLinkService {
         SharedLinkEntity link = findLinkOrThrow(token);
 
         if (link.getPasswordHash() != null) {
+            // Counted per link, so spreading guesses over many IPs doesn't help.
+            if (!attemptLimiter.tryAttempt(token)) {
+                throw new TooManyRequestsException("Too many password attempts for this link. Try again later.");
+            }
             if (password == null || !passwordEncoder.matches(password, link.getPasswordHash())) {
                 throw new PasswordRequiredException("Password required or incorrect");
             }
+            attemptLimiter.refund(token);
         }
 
         FileEntity file = fileRepository.findById(link.getFileId())

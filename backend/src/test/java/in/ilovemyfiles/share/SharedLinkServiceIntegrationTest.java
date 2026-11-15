@@ -2,6 +2,7 @@ package in.ilovemyfiles.share;
 
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.NotFoundException;
+import in.ilovemyfiles.common.TooManyRequestsException;
 import in.ilovemyfiles.file.FileEntity;
 import in.ilovemyfiles.file.FileRepository;
 import in.ilovemyfiles.notification.NotificationService;
@@ -129,6 +130,39 @@ class SharedLinkServiceIntegrationTest {
         FileEntity result = sharedLinkService.validateDownload(link.getToken(), "secret");
         assertNotNull(result);
         assertEquals(sharedFileId, result.getId());
+    }
+
+    private SharedLinkEntity linkWithPassword(String password) {
+        return sharedLinkRepository.saveAndFlush(SharedLinkEntity.builder()
+            .fileId(sharedFileId)
+            .userId(sharedUserId)
+            .token("pw-" + UUID.randomUUID())
+            .passwordHash(passwordEncoder.encode(password))
+            .build());
+    }
+
+    @Test
+    void passwordGuessing_locksTheLinkWhateverAddressItComesFrom() {
+        SharedLinkEntity link = linkWithPassword("right");
+
+        for (int i = 0; i < ShareAttemptLimiter.ATTEMPTS; i++) {
+            assertThrows(PasswordRequiredException.class,
+                () -> sharedLinkService.validateDownload(link.getToken(), "guess"));
+        }
+        assertThrows(TooManyRequestsException.class,
+            () -> sharedLinkService.validateDownload(link.getToken(), "guess"));
+        // Locked until the window refills, even for the right password.
+        assertThrows(TooManyRequestsException.class,
+            () -> sharedLinkService.validateDownload(link.getToken(), "right"));
+    }
+
+    @Test
+    void correctPasswords_neverUseUpTheLink() {
+        SharedLinkEntity link = linkWithPassword("right");
+
+        for (int i = 0; i < ShareAttemptLimiter.ATTEMPTS + 5; i++) {
+            assertEquals(sharedFileId, sharedLinkService.validateDownload(link.getToken(), "right").getId());
+        }
     }
 
     @Test

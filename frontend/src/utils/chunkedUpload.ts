@@ -110,37 +110,38 @@ export async function chunkedUpload(
     onProgress(Math.min(99, Math.round((loaded / file.size) * 100)));
   };
 
-  // 3 ── PUT parts directly to storage, in parallel batches ──────────────────
-  for (let i = 0; i < parts.length; i += PARALLEL) {
-    if (signal.aborted) {
-      await chunkApi.cancel(uploadId).catch(() => {});
-      const err = new Error('Upload cancelled');
-      (err as unknown as { code: string }).code = 'ERR_CANCELED';
-      throw err;
-    }
+  try {
+    // 3 ── PUT parts directly to storage, in parallel batches ────────────────
+    for (let i = 0; i < parts.length; i += PARALLEL) {
+      if (signal.aborted) {
+        const err = new Error('Upload cancelled');
+        (err as unknown as { code: string }).code = 'ERR_CANCELED';
+        throw err;
+      }
 
-    const batch = parts.slice(i, i + PARALLEL).map((part) => {
-      const idx = part.partNumber - 1;
-      const start = idx * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, file.size);
-      const blob = file.slice(start, end);
+      const batch = parts.slice(i, i + PARALLEL).map((part) => {
+        const idx = part.partNumber - 1;
+        const start = idx * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, file.size);
+        const blob = file.slice(start, end);
 
-      return uploadPartWithRetry(part.url, blob, signal, (loaded) => {
-        partLoaded[idx] = loaded;
-        reportProgress();
+        return uploadPartWithRetry(part.url, blob, signal, (loaded) => {
+          partLoaded[idx] = loaded;
+          reportProgress();
+        });
       });
-    });
 
-    try {
       await Promise.all(batch);
-    } catch (err) {
-      if (isCancelled(err)) await chunkApi.cancel(uploadId).catch(() => {});
-      throw err;
     }
-  }
 
-  // 4 ── Finalise — server assembles the parts and writes metadata ───────────
-  const { data: fileItem } = await chunkApi.complete(uploadId, signal);
-  onProgress(100);
-  return fileItem;
+    // 4 ── Finalise — server assembles the parts and writes metadata ─────────
+    const { data: fileItem } = await chunkApi.complete(uploadId, signal);
+    onProgress(100);
+    return fileItem;
+  } catch (err) {
+    // Cancelled or failed, release the server-side upload: an unfinished one
+    // holds its size against the account's quota until it expires (a day).
+    await chunkApi.cancel(uploadId).catch(() => {});
+    throw err;
+  }
 }

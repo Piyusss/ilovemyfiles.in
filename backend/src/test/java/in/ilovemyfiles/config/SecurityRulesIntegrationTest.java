@@ -7,6 +7,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -63,5 +64,20 @@ class SecurityRulesIntegrationTest {
         mvc.perform(get("/api/jobs").with(jwt().authorities(ADMIN))).andExpect(status().isOk());
         mvc.perform(post("/api/jobs/no-such-job/run").with(jwt().authorities(ADMIN)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shareDownloadsArePublicAndTakeThePasswordInTheBody() throws Exception {
+        // Public: no sign-in needed (an unknown link is a 404, not a 401).
+        mvc.perform(post("/api/share/no-such-link/download")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"x\"}"))
+                .andExpect(status().isNotFound());
+        // The old GET with ?password= is gone, reported as 405 instead of a 500.
+        mvc.perform(get("/api/share/no-such-link/download").param("password", "x"))
+                .andExpect(status().isMethodNotAllowed());
+        // A body that isn't JSON is the client's mistake, not a server error.
+        mvc.perform(post("/api/share/no-such-link/download")
+                        .contentType(MediaType.APPLICATION_JSON).content("{not json"))
+                .andExpect(status().isBadRequest());
     }
 }

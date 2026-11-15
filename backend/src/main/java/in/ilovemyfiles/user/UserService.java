@@ -52,13 +52,19 @@ public class UserService {
         return userRepository.storedBytes(userId);
     }
 
-    /** Throws when storing {@code extraBytes} more would put the account over its limit. */
-    public void checkQuota(User user, long extraBytes) {
+    /**
+     * Throws when storing {@code extraBytes} more would put the account over its
+     * limit. {@code reservedBytes} is space the user's unfinished uploads already
+     * hold. Counting it stops one account from reserving far more than its quota
+     * and, with it, the app-wide capacity every user shares.
+     */
+    public void checkQuota(User user, long extraBytes, long reservedBytes) {
         long limit = storageLimit(user);
-        long stored = storedBytes(user.getId());
-        if (stored + extraBytes > limit) {
-            throw new StorageQuotaException("Not enough space: " + mb(Math.max(0, limit - stored))
-                    + " of your " + mb(limit) + " is free");
+        long used = storedBytes(user.getId()) + reservedBytes;
+        if (used + extraBytes > limit) {
+            String held = reservedBytes > 0 ? " (" + mb(reservedBytes) + " is held by uploads in progress)" : "";
+            throw new StorageQuotaException("Not enough space: " + mb(Math.max(0, limit - used))
+                    + " of your " + mb(limit) + " is free" + held);
         }
     }
 

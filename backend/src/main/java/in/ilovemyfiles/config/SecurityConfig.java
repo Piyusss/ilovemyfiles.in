@@ -37,6 +37,7 @@ public class SecurityConfig {
                 // WebSocket handshake needs an HTTP session; keep STATELESS for all regular API calls
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET,  "/api/share/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/share/*/download").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()   // auth happens in STOMP interceptor
                         // The maintenance jobs act on every user's data: admins only.

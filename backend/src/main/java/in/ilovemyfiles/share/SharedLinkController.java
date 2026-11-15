@@ -54,11 +54,16 @@ public class SharedLinkController {
         return ResponseEntity.ok(sharedLinkService.getPublicInfo(token));
     }
 
-    /** Validates the link (password / expiry / rate limit) then returns a presigned download URL. */
-    @GetMapping("/api/share/{token}/download")
+    /**
+     * Validates the link (password / expiry / rate limits), then returns a presigned
+     * download URL. POST, so the password travels in the body: as a GET query
+     * parameter it ended up in proxy logs and browser history.
+     */
+    @PostMapping("/api/share/{token}/download")
     public ResponseEntity<Map<String, String>> download(
             @PathVariable String token,
-            @RequestParam(required = false) String password) {
+            @RequestBody(required = false) DownloadShareRequest request) {
+        String password = request != null ? request.getPassword() : null;
         FileEntity file = sharedLinkService.validateDownload(token, password);
         String url = sharedLinkService.presignedUrlFor(file);
         return ResponseEntity.ok(Map.of("url", url, "fileName", file.getName()));
