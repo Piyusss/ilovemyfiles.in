@@ -96,7 +96,8 @@ public class FolderService {
         LocalDateTime now = LocalDateTime.now();
 
         for (UUID id : allFolderIds) {
-            List<FileEntity> files = fileRepository.findByFolderIdAndIsDeletedFalse(id);
+            List<FileEntity> files =
+                    fileRepository.findByUserIdAndFolderIdAndIsDeletedFalseOrderByCreatedAtDesc(userId, id);
             for (FileEntity f : files) {
                 f.setIsDeleted(true);
                 f.setDeletedAt(now);
@@ -167,7 +168,7 @@ public class FolderService {
     }
 
     private FolderDto toDtoWithCount(FolderEntity e) {
-        long count = fileRepository.countByFolderIdAndIsDeletedFalse(e.getId());
+        long count = fileRepository.countByUserIdAndFolderIdAndIsDeletedFalse(e.getUserId(), e.getId());
         return FolderDto.builder()
                 .id(e.getId())
                 .userId(e.getUserId())

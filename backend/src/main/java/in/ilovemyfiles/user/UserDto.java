@@ -16,4 +16,6 @@ public class UserDto {
     private Long storageUsed;
     private Long storageLimit;
     private LocalDateTime createdAt;
+    /** May view and run the maintenance jobs (see AdminAccess). */
+    private boolean admin;
 }

@@ -21,7 +21,15 @@ const queryClient = new QueryClient({
       // The backend sleeps on Render's free tier and a JVM cold start can
       // take a while. Paired with the 30s axios timeout these retries keep
       // polling for roughly two minutes instead of hanging on one attempt.
-      retry: 3,
+      // A 4xx answer (forbidden, not found, bad input) won't change on retry,
+      // except a timeout or rate limit.
+      retry: (failureCount, error) => {
+        const status = (error as { response?: { status?: number } })?.response?.status;
+        if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+          return false;
+        }
+        return failureCount < 3;
+      },
       retryDelay: (attempt) => Math.min(15_000, 1_500 * 2 ** attempt),
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000,

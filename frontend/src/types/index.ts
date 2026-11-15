@@ -5,6 +5,8 @@ export interface UserDto {
   storageUsed: number;
   storageLimit: number;
   createdAt: string;
+  /** May view and run the maintenance jobs. */
+  admin?: boolean;
 }
 
 export interface ApiError {

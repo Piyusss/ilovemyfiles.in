@@ -114,6 +114,12 @@
             <version>8.10.1</version>
         </dependency>
 
+        <!-- Bounded in-process caches (Clerk id lookups, rate-limit buckets) -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>

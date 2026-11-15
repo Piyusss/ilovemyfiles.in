@@ -70,6 +70,9 @@ cors:
 app:
   share-base-url: ${APP_SHARE_BASE_URL:http://localhost:5173}
   version-retention: ${VERSION_RETENTION:10}
+  # Clerk user ids (comma-separated) allowed to view and trigger the maintenance
+  # jobs (/api/jobs). Empty means nobody; the jobs still run on their schedule.
+  admin-clerk-ids: ${ADMIN_CLERK_IDS:}
   # The cache stops writing new entries once Redis reports this much memory in use
   # (reads keep working). 24MB leaves headroom under Redis Cloud's free 30 MB.
   redis-memory-limit: ${REDIS_MEMORY_LIMIT:24MB}

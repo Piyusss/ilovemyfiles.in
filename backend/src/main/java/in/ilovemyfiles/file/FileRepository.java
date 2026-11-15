@@ -27,9 +27,8 @@ public interface FileRepository extends JpaRepository<FileEntity, UUID> {
 
     long countByUserIdAndIsDeletedFalse(UUID userId);
 
-    long countByFolderIdAndIsDeletedFalse(UUID folderId);
-
-    List<FileEntity> findByFolderIdAndIsDeletedFalse(UUID folderId);
+    // Scoped by user too: a folder only ever counts and trashes its owner's files.
+    long countByUserIdAndFolderIdAndIsDeletedFalse(UUID userId, UUID folderId);
 
     // For version detection: find existing file by name in same folder. The row
     // is locked so concurrent uploads of one file are numbered one after another.

@@ -2,11 +2,13 @@ package in.ilovemyfiles.chunk;
 
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.BadRequestException;
+import in.ilovemyfiles.common.NotFoundException;
 import in.ilovemyfiles.common.StorageQuotaException;
 import in.ilovemyfiles.file.FileDto;
 import in.ilovemyfiles.file.FileService;
 import in.ilovemyfiles.file.PhysicalFileEntity;
 import in.ilovemyfiles.file.PhysicalFileRepository;
+import in.ilovemyfiles.folder.FolderRepository;
 import in.ilovemyfiles.notification.NotificationService;
 import in.ilovemyfiles.storage.StorageCapacityService;
 import in.ilovemyfiles.storage.StorageService;
@@ -42,6 +44,7 @@ class ChunkUploadServiceTest {
     @Mock NotificationService notificationService;
     @Mock StorageService storageService;
     @Mock StorageCapacityService storageCapacityService;
+    @Mock FolderRepository folderRepository;
 
     @InjectMocks ChunkUploadService service;
 
@@ -139,6 +142,16 @@ class ChunkUploadServiceTest {
         // 10 MB needs at most 2 parts of 5 MB; asking for 100 presigned URLs is refused.
         assertThrows(BadRequestException.class, () -> service.init(request(10 * MB, 100), userId));
 
+        verifyNoInteractions(physicalFileRepository, storageService, sessionRepository);
+    }
+
+    @Test
+    void refusesToUploadIntoAFolderTheUserDoesNotOwn() {
+        UUID someoneElsesFolder = UUID.randomUUID();
+        when(folderRepository.findByIdAndUserId(someoneElsesFolder, userId)).thenReturn(Optional.empty());
+        var req = new InitUploadRequest("x.bin", MB, 1, "video/mp4", someoneElsesFolder, HASH);
+
+        assertThrows(NotFoundException.class, () -> service.init(req, userId));
         verifyNoInteractions(physicalFileRepository, storageService, sessionRepository);
     }
 

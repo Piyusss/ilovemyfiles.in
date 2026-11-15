@@ -8,6 +8,7 @@ import in.ilovemyfiles.file.FileDto;
 import in.ilovemyfiles.file.FileService;
 import in.ilovemyfiles.file.PhysicalFileEntity;
 import in.ilovemyfiles.file.PhysicalFileRepository;
+import in.ilovemyfiles.folder.FolderRepository;
 import in.ilovemyfiles.storage.StorageCapacityService;
 import in.ilovemyfiles.storage.StorageService;
 import in.ilovemyfiles.user.User;
@@ -43,6 +44,7 @@ public class ChunkUploadService {
     private final NotificationService notificationService;
     private final StorageService storageService;
     private final StorageCapacityService storageCapacityService;
+    private final FolderRepository folderRepository;
 
     // S3 parts are at least 5 MB (only the last may be smaller).
     private static final long MIN_PART_SIZE = 5L * 1024 * 1024;
@@ -65,6 +67,14 @@ public class ChunkUploadService {
         long maxParts = Math.max(1, (req.getFileSize() + MIN_PART_SIZE - 1) / MIN_PART_SIZE);
         if (req.getTotalChunks() > maxParts) {
             throw new BadRequestException("Too many parts for a file of this size");
+        }
+
+        // ── The target folder must be the uploader's own ───────────────────────
+        // Without this, any folder id (another user's included) was accepted and
+        // the file row was written into that folder.
+        if (req.getFolderId() != null
+                && folderRepository.findByIdAndUserId(req.getFolderId(), userId).isEmpty()) {
+            throw new NotFoundException("Folder not found");
         }
 
         // ── Account quota — also before dedup: a deduplicated file still counts ──

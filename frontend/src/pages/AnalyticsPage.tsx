@@ -6,6 +6,7 @@ import {
   TrendingDown, Clock, Play, CheckCircle,
 } from 'lucide-react';
 import { analyticsApi, jobsApi } from '../api';
+import { useAuth } from '../auth/AuthContext';
 import type { ActivityItem, FileStats, JobStatus, TypeBreakdown } from '../types';
 import { formatBytes, formatRelativeDate } from '../utils/format';
 import { FileIcon } from '../components/FileIcon';
@@ -56,6 +57,10 @@ const TYPE_COLORS: Record<string, string> = {
 export function AnalyticsPage() {
   const queryClient = useQueryClient();
   const [triggeringJob, setTriggeringJob] = useState<string | null>(null);
+  // The maintenance jobs act on every user's data; the API only lets admins
+  // see or run them, so everyone else doesn't get the panel at all.
+  const { user } = useAuth();
+  const isAdmin = !!user?.admin;
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics'],
@@ -66,7 +71,8 @@ export function AnalyticsPage() {
   const { data: jobs = [] } = useQuery({
     queryKey: ['jobs'],
     queryFn: () => jobsApi.getStatus().then((r) => r.data),
-    refetchInterval: 10_000,
+    enabled: isAdmin,
+    refetchInterval: isAdmin ? 10_000 : false,
   });
 
   const triggerMutation = useMutation({
@@ -236,7 +242,8 @@ export function AnalyticsPage() {
         </div>
       </div>
 
-      {/* ── Scheduled Jobs ───────────────────────────────────────────────── */}
+      {/* ── Scheduled Jobs (admins only) ─────────────────────────────────── */}
+      {isAdmin && (
       <div className="glass-card overflow-hidden">
         <div className="px-4 sm:px-5 py-3.5 border-b border-surface-800">
           <p className="text-sm font-medium text-surface-200">Scheduled Jobs</p>
@@ -294,6 +301,7 @@ export function AnalyticsPage() {
           ))}
         </div>
       </div>
+      )}
 
       {/* ── Recent activity ───────────────────────────────────────────────── */}
       <div className="glass-card overflow-hidden">

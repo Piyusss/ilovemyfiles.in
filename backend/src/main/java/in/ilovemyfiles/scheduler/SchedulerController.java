@@ -1,5 +1,6 @@
 package in.ilovemyfiles.scheduler;
 
+import in.ilovemyfiles.common.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -30,7 +31,7 @@ public class SchedulerController {
             case "trash-cleanup"  -> schedulerService.runTrashCleanup();
             case "expired-links"  -> schedulerService.runExpiredLinksCleanup();
             case "version-cleanup"-> schedulerService.runVersionCleanup();
-            default -> throw new RuntimeException("Unknown job: " + jobName);
+            default -> throw new NotFoundException("Unknown job: " + jobName);
         }
         return ResponseEntity.ok(Map.of("message", "Job '" + jobName + "' triggered"));
     }
