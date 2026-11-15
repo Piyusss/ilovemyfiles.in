@@ -30,6 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "minio.bucket=test-bucket",
     "app.share-base-url=http://localhost:5173",
     "cors.allowed-origins=http://localhost:5173",
+    // The web security setup needs this to start. CI has no .env to supply
+    // CLERK_JWKS_URI, and the decoder is mocked, so the URL is never fetched.
+    "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost/test-jwks",
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration"
 })
 @AutoConfigureMockMvc
