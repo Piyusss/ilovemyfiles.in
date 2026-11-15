@@ -3,12 +3,10 @@ package in.ilovemyfiles.file;
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.BadRequestException;
 import in.ilovemyfiles.common.NotFoundException;
+import in.ilovemyfiles.storage.StorageCleanupService;
 import in.ilovemyfiles.user.UserService;
-import io.minio.MinioClient;
-import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +24,7 @@ public class FileVersionService {
     private final FileService fileService;
     private final UserService userService;
     private final ActivityService activityService;
-    private final MinioClient minioClient;
-
-    @Value("${minio.bucket}")
-    private String bucket;
+    private final StorageCleanupService storageCleanupService;
 
     public List<FileVersionDto> getVersions(UUID fileId, UUID userId) {
         FileEntity file = fileRepository.findByIdAndUserIdAndIsDeletedFalse(fileId, userId)
@@ -42,7 +37,9 @@ public class FileVersionService {
 
     @Transactional
     public FileDto restore(UUID fileId, UUID versionId, UUID userId) {
-        FileEntity file = fileRepository.findByIdAndUserIdAndIsDeletedFalse(fileId, userId)
+        // Locked, so a concurrent deleteVersion can't remove the version this
+        // restore is about to make current.
+        FileEntity file = fileRepository.findLockedByIdAndUserIdAndIsDeletedFalse(fileId, userId)
                 .orElseThrow(() -> new NotFoundException("File not found"));
 
         FileVersionEntity target = versionRepository.findByIdAndFileId(versionId, fileId)
@@ -59,12 +56,15 @@ public class FileVersionService {
 
         if (delta != 0) userService.updateStorageUsed(userId, delta);
         activityService.log(userId, ActivityService.VERSION_RESTORE, file.getName(), target.getSize());
+        // The cached folder listing still shows the old size.
+        fileService.evictFileCaches(userId, file.getFolderId());
         return fileService.toDto(file);
     }
 
     @Transactional
     public void deleteVersion(UUID fileId, UUID versionId, UUID userId) {
-        FileEntity file = fileRepository.findByIdAndUserIdAndIsDeletedFalse(fileId, userId)
+        // Locked, so the "current version" check below can't race a restore.
+        FileEntity file = fileRepository.findLockedByIdAndUserIdAndIsDeletedFalse(fileId, userId)
                 .orElseThrow(() -> new NotFoundException("File not found"));
 
         FileVersionEntity version = versionRepository.findByIdAndFileId(versionId, fileId)
@@ -78,14 +78,10 @@ public class FileVersionService {
             throw new BadRequestException("Cannot delete the only version");
         }
 
-        try {
-            minioClient.removeObject(RemoveObjectArgs.builder()
-                    .bucket(bucket).object(version.getStorageKey()).build());
-        } catch (Exception e) {
-            log.warn("Failed to delete version from MinIO: {}", e.getMessage());
-        }
-
         versionRepository.delete(version);
+        // Dedup may share this object with other files, even other users' files:
+        // it is deleted only once nothing references it any more.
+        storageCleanupService.deleteIfUnreferenced(version.getStorageKey());
     }
 
     private FileVersionDto toDto(FileVersionEntity v, boolean current) {

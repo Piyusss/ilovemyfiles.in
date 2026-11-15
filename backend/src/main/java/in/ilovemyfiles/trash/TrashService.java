@@ -5,14 +5,13 @@ import in.ilovemyfiles.common.NotFoundException;
 import in.ilovemyfiles.file.FileEntity;
 import in.ilovemyfiles.file.FileRepository;
 import in.ilovemyfiles.file.FileService;
-import in.ilovemyfiles.file.PhysicalFileRepository;
+import in.ilovemyfiles.file.FileVersionEntity;
+import in.ilovemyfiles.file.FileVersionRepository;
 import in.ilovemyfiles.folder.FolderRepository;
+import in.ilovemyfiles.storage.StorageCleanupService;
 import in.ilovemyfiles.user.UserService;
-import io.minio.MinioClient;
-import io.minio.RemoveObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,15 +25,12 @@ import java.util.stream.Collectors;
 public class TrashService {
 
     private final FileRepository fileRepository;
-    private final PhysicalFileRepository physicalFileRepository;
+    private final FileVersionRepository versionRepository;
     private final FolderRepository folderRepository;
     private final UserService userService;
     private final ActivityService activityService;
     private final FileService fileService;
-    private final MinioClient minioClient;
-
-    @Value("${minio.bucket}")
-    private String bucket;
+    private final StorageCleanupService storageCleanupService;
 
     private static final int RETENTION_DAYS = 30;
 
@@ -84,14 +80,6 @@ public class TrashService {
                 && folderRepository.findByIdAndUserId(restoreFolderId, userId).isEmpty()) {
             restoreFolderId = null;
             file.setFolderId(null);
-        }
-
-        // Re-increment physical ref_count (was decremented on soft-delete)
-        if (file.getPhysicalFileId() != null) {
-            physicalFileRepository.findById(file.getPhysicalFileId()).ifPresent(pf -> {
-                pf.setRefCount(pf.getRefCount() + 1);
-                physicalFileRepository.save(pf);
-            });
         }
 
         file.setIsDeleted(false);
@@ -145,28 +133,18 @@ public class TrashService {
     // ── Internal hard-delete (no auth check, no extra activity log) ───────────
 
     private void hardDeleteInternal(FileEntity file) {
-        if (file.getPhysicalFileId() != null) {
-            // ref_count was already decremented on soft-delete;
-            // only wipe MinIO if no other file references this physical object
-            physicalFileRepository.findById(file.getPhysicalFileId()).ifPresent(pf -> {
-                if (pf.getRefCount() <= 0) {
-                    deleteFromMinio(pf.getStorageKey());
-                    physicalFileRepository.delete(pf);
-                }
-            });
-        } else {
-            // Pre-Phase-6 file: no physical record, delete MinIO directly
-            deleteFromMinio(file.getStorageKey());
-        }
-        fileRepository.delete(file);
-    }
+        // Every object this file points at: its current copy and all its
+        // versions. (Versions used to vanish through the database cascade
+        // alone, which left their objects in the bucket forever.)
+        List<FileVersionEntity> versions = versionRepository.findByFileIdOrderByVersionDesc(file.getId());
+        Set<String> keys = new LinkedHashSet<>();
+        keys.add(file.getStorageKey());
+        versions.forEach(v -> keys.add(v.getStorageKey()));
 
-    private void deleteFromMinio(String storageKey) {
-        try {
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder().bucket(bucket).object(storageKey).build());
-        } catch (Exception e) {
-            log.warn("MinIO delete failed for {}: {}", storageKey, e.getMessage());
-        }
+        versionRepository.deleteAll(versions);
+        fileRepository.delete(file);
+
+        // Objects another file or version still uses (dedup) are kept.
+        keys.forEach(storageCleanupService::deleteIfUnreferenced);
     }
 }

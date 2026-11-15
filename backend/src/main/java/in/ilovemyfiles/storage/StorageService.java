@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -82,6 +84,19 @@ public class StorageService {
 
     public long headObjectSize(String key) {
         return s3.headObject(b -> b.bucket(bucket).key(key)).contentLength();
+    }
+
+    /** True if an object is stored under this key. */
+    public boolean exists(String key) {
+        try {
+            s3.headObject(b -> b.bucket(bucket).key(key));
+            return true;
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (S3Exception e) {
+            if (e.statusCode() == 404) return false;
+            throw e;
+        }
     }
 
     public void deleteObject(String key) {

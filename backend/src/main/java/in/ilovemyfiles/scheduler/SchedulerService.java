@@ -1,11 +1,8 @@
 package in.ilovemyfiles.scheduler;
 
-import in.ilovemyfiles.file.FileVersionEntity;
-import in.ilovemyfiles.file.PhysicalFileRepository;
 import in.ilovemyfiles.share.SharedLinkRepository;
+import in.ilovemyfiles.storage.StorageCleanupService;
 import in.ilovemyfiles.trash.TrashService;
-import io.minio.MinioClient;
-import io.minio.RemoveObjectArgs;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -17,8 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,14 +28,10 @@ public class SchedulerService {
 
     private final TrashService trashService;
     private final SharedLinkRepository sharedLinkRepository;
-    private final PhysicalFileRepository physicalFileRepository;
-    private final MinioClient minioClient;
+    private final StorageCleanupService storageCleanupService;
 
     @PersistenceContext
     private EntityManager entityManager;
-
-    @Value("${minio.bucket}")
-    private String bucket;
 
     @Value("${app.version-retention:10}")
     private int maxVersions;
@@ -91,63 +86,40 @@ public class SchedulerService {
 
     @SuppressWarnings("unchecked")
     private int pruneOldVersions() {
-        // Find excess versions: for each file, the (maxVersions+1)th-oldest and beyond.
-        // Never delete the current version (fv.storage_key = f.storage_key).
+        // Versions past the newest maxVersions of each live file, except one that
+        // is still the file's current copy. ROW_NUMBER ranks each file's versions
+        // in one pass; the previous correlated COUNT(*) re-scanned every file's
+        // versions once per row.
         List<Object[]> rows = entityManager.createNativeQuery("""
-                SELECT fv.id::text, fv.storage_key
-                FROM file_versions fv
-                JOIN files f ON f.id = fv.file_id AND f.is_deleted = false
-                WHERE (
-                    SELECT COUNT(*) FROM file_versions fv2
-                    WHERE fv2.file_id = fv.file_id AND fv2.version >= fv.version
-                ) > :maxV
-                AND fv.storage_key != f.storage_key
+                SELECT ranked.id::text, ranked.storage_key
+                FROM (
+                    SELECT fv.id, fv.storage_key, f.storage_key AS current_key,
+                           ROW_NUMBER() OVER (PARTITION BY fv.file_id ORDER BY fv.version DESC) AS rn
+                    FROM file_versions fv
+                    JOIN files f ON f.id = fv.file_id AND f.is_deleted = false
+                ) ranked
+                WHERE ranked.rn > :maxV
+                  AND ranked.storage_key <> ranked.current_key
                 """)
                 .setParameter("maxV", maxVersions)
                 .getResultList();
 
         if (rows.isEmpty()) return 0;
 
-        List<UUID> toDeleteIds = new ArrayList<>();
+        List<UUID> ids = new ArrayList<>();
+        Set<String> keys = new LinkedHashSet<>();
         for (Object[] row : rows) {
-            UUID versionId = UUID.fromString((String) row[0]);
-            String storageKey = (String) row[1];
-            toDeleteIds.add(versionId);
-            cleanupVersionStorage(storageKey);
+            ids.add(UUID.fromString((String) row[0]));
+            keys.add((String) row[1]);
         }
 
         entityManager.createQuery("DELETE FROM FileVersionEntity fv WHERE fv.id IN :ids")
-                .setParameter("ids", toDeleteIds)
+                .setParameter("ids", ids)
                 .executeUpdate();
 
-        return toDeleteIds.size();
-    }
-
-    private void cleanupVersionStorage(String storageKey) {
-        // If storage is managed by physical_files, decrement ref_count
-        var physOpt = physicalFileRepository.findByStorageKey(storageKey);
-        if (physOpt.isPresent()) {
-            var pf = physOpt.get();
-            pf.setRefCount(Math.max(0, pf.getRefCount() - 1));
-            if (pf.getRefCount() <= 0) {
-                deleteFromMinio(storageKey);
-                physicalFileRepository.delete(pf);
-            } else {
-                physicalFileRepository.save(pf);
-            }
-        } else {
-            // Legacy storage key not tracked by physical_files — delete directly
-            deleteFromMinio(storageKey);
-        }
-    }
-
-    private void deleteFromMinio(String storageKey) {
-        try {
-            minioClient.removeObject(
-                    RemoveObjectArgs.builder().bucket(bucket).object(storageKey).build());
-        } catch (Exception e) {
-            log.warn("MinIO delete failed for {}: {}", storageKey, e.getMessage());
-        }
+        // An object another file or version still uses (dedup) is kept.
+        keys.forEach(storageCleanupService::deleteIfUnreferenced);
+        return ids.size();
     }
 
     // ── Status tracking ───────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,8 +31,8 @@ public class FileService {
 
     private final FileRepository fileRepository;
     private final FileVersionRepository versionRepository;
-    private final PhysicalFileRepository physicalFileRepository;
     private final FolderRepository folderRepository;
+    private final JdbcTemplate jdbc;
     private final UserService userService;
     private final ActivityService activityService;
     private final NotificationService notificationService;
@@ -48,14 +49,26 @@ public class FileService {
     @Transactional
     public FileDto finalizeUpload(String name, long size, String contentType, UUID folderId,
                                   UUID userId, String storageKey, String hash) {
-        UUID physicalFileId = null;
-        if (hash != null) {
-            PhysicalFileEntity pf = physicalFileRepository.save(PhysicalFileEntity.builder()
-                    .hash(hash).size(size).storageKey(storageKey).build());
-            physicalFileId = pf.getId();
-        }
+        UUID physicalFileId = hash != null ? registerForDedup(userId, hash, size, storageKey) : null;
         return createOrUpdateFile(name, size, contentType, folderId, userId,
                 storageKey, physicalFileId, false);
+    }
+
+    /**
+     * Records this upload as the user's stored copy of the content with this
+     * hash, so their later uploads of the same content can skip the transfer.
+     * If the user already has an entry for the hash (say, two uploads of the
+     * same file finishing together), that entry stays and this upload is just
+     * not used for dedup, instead of failing on the unique constraint.
+     */
+    private UUID registerForDedup(UUID userId, String hash, long size, String storageKey) {
+        List<UUID> inserted = jdbc.queryForList("""
+                INSERT INTO physical_files (user_id, hash, size, storage_key)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (user_id, hash) DO NOTHING
+                RETURNING id
+                """, UUID.class, userId, hash, size, storageKey);
+        return inserted.isEmpty() ? null : inserted.get(0);
     }
 
     @Transactional
@@ -76,16 +89,23 @@ public class FileService {
             FileEntity file = existing.get();
             long oldSize = file.getSize();
 
-            // Retroactive v1 for files that predate versioning
-            if (versionRepository.countByFileId(file.getId()) == 0) {
+            // Number from the highest existing version, not the count: deleting
+            // or pruning a version leaves a gap, and count + 1 then collided with
+            // the newest version (UNIQUE (file_id, version)), failing every later
+            // upload of this file. findExisting locked the file row, so
+            // concurrent uploads of it are numbered one after the other.
+            int latest = versionRepository.findTopByFileIdOrderByVersionDesc(file.getId())
+                    .map(FileVersionEntity::getVersion)
+                    .orElse(0);
+            if (latest == 0) {
+                // Retroactive v1 for files that predate versioning
                 versionRepository.save(FileVersionEntity.builder()
                         .fileId(file.getId()).version(1)
                         .storageKey(file.getStorageKey()).size(oldSize).build());
+                latest = 1;
             }
-
-            int nextVersion = (int) versionRepository.countByFileId(file.getId()) + 1;
             versionRepository.save(FileVersionEntity.builder()
-                    .fileId(file.getId()).version(nextVersion)
+                    .fileId(file.getId()).version(latest + 1)
                     .storageKey(storageKey).size(size).build());
 
             file.setStorageKey(storageKey);
@@ -191,14 +211,8 @@ public class FileService {
         FileEntity file = fileRepository.findByIdAndUserIdAndIsDeletedFalse(fileId, userId)
                 .orElseThrow(() -> new NotFoundException("File not found"));
 
-        // Decrement physical ref_count
-        if (file.getPhysicalFileId() != null) {
-            physicalFileRepository.findById(file.getPhysicalFileId()).ifPresent(pf -> {
-                pf.setRefCount(Math.max(0, pf.getRefCount() - 1));
-                physicalFileRepository.save(pf);
-            });
-        }
-
+        // A trashed file keeps its stored object: it can still be restored. The
+        // object is released on permanent delete (TrashService).
         activityService.log(userId, ActivityService.DELETE, file.getName(), file.getSize());
         UUID folderId = file.getFolderId();
         file.setIsDeleted(true);

@@ -75,27 +75,34 @@ public class ChunkUploadService {
         //    session or file row written below is visible to the next check ──
         storageCapacityService.checkCapacity(req.getFileSize());
 
-        // ── Deduplication check ──────────────────────────────────────────────
+        // ── Deduplication — only against this user's own uploads ─────────────
+        // The hash comes from the client and can't be verified (the bytes never
+        // reach this server), so it is matched only against the sender's own
+        // uploads: a wrong hash can mislead nobody but its sender. A different
+        // size means the claim is wrong, so the file is uploaded normally.
         if (req.getHash() != null) {
-            var existing = physicalFileRepository.findByHash(req.getHash());
-            if (existing.isPresent()) {
-                PhysicalFileEntity pf = existing.get();
-                pf.setRefCount(pf.getRefCount() + 1);
-                physicalFileRepository.save(pf);
+            var match = physicalFileRepository.findByUserIdAndHash(userId, req.getHash())
+                    .filter(pf -> pf.getSize() == req.getFileSize());
+            if (match.isPresent()) {
+                PhysicalFileEntity pf = match.get();
+                if (storageService.exists(pf.getStorageKey())) {
+                    FileDto fileItem = fileService.createOrUpdateFile(
+                            req.getFileName(), pf.getSize(), req.getContentType(),
+                            req.getFolderId(), userId, pf.getStorageKey(), pf.getId(), true);
 
-                FileDto fileItem = fileService.createOrUpdateFile(
-                        req.getFileName(), req.getFileSize(), req.getContentType(),
-                        req.getFolderId(), userId, pf.getStorageKey(), pf.getId(), true);
+                    // Dedup still creates a new file row — evict the cached listing so
+                    // it shows up immediately (mirrors complete()).
+                    fileService.evictFileCaches(userId, req.getFolderId());
 
-                // Dedup still creates a new file row — evict the cached listing so
-                // it shows up immediately (mirrors complete()).
-                fileService.evictFileCaches(userId, req.getFolderId());
-
-                return InitUploadResponse.builder()
-                        .duplicate(true)
-                        .fileItem(fileItem)
-                        .parts(List.of())
-                        .build();
+                    return InitUploadResponse.builder()
+                            .duplicate(true)
+                            .fileItem(fileItem)
+                            .parts(List.of())
+                            .build();
+                }
+                // The entry outlived its object (an older release could delete
+                // shared bytes): drop it so this upload takes its place.
+                physicalFileRepository.delete(pf);
             }
         }
 

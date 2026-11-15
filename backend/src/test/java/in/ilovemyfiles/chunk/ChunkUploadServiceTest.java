@@ -3,7 +3,9 @@ package in.ilovemyfiles.chunk;
 import in.ilovemyfiles.analytics.ActivityService;
 import in.ilovemyfiles.common.BadRequestException;
 import in.ilovemyfiles.common.StorageQuotaException;
+import in.ilovemyfiles.file.FileDto;
 import in.ilovemyfiles.file.FileService;
+import in.ilovemyfiles.file.PhysicalFileEntity;
 import in.ilovemyfiles.file.PhysicalFileRepository;
 import in.ilovemyfiles.notification.NotificationService;
 import in.ilovemyfiles.storage.StorageCapacityService;
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.*;
 class ChunkUploadServiceTest {
 
     private static final long MB = 1024L * 1024;
+    private static final String HASH = "a".repeat(64);
 
     @Mock UploadSessionRepository sessionRepository;
     @Mock FileService fileService;
@@ -50,7 +53,23 @@ class ChunkUploadServiceTest {
     }
 
     private static InitUploadRequest request(long size, int totalChunks) {
-        return new InitUploadRequest("lecture.mp4", size, totalChunks, "video/mp4", null, "a1b2c3");
+        return new InitUploadRequest("lecture.mp4", size, totalChunks, "video/mp4", null, HASH);
+    }
+
+    private PhysicalFileEntity ownCopy(long size) {
+        return PhysicalFileEntity.builder()
+                .id(UUID.randomUUID()).userId(userId).hash(HASH)
+                .size(size).storageKey(userId + "/existing").build();
+    }
+
+    private void storageAcceptsANewUpload() {
+        when(storageService.createMultipartUpload(anyString(), eq("video/mp4"))).thenReturn("s3-upload-id");
+        when(storageService.presignUploadPart(anyString(), eq("s3-upload-id"), anyInt())).thenReturn("https://part-url");
+        when(sessionRepository.saveAndFlush(any())).thenAnswer(inv -> {
+            UploadSessionEntity session = inv.getArgument(0);
+            session.setId(UUID.randomUUID());
+            return session;
+        });
     }
 
     @Test
@@ -91,15 +110,8 @@ class ChunkUploadServiceTest {
     @Test
     void acceptsAFileExactlyAtTheLimit() {
         User user = new User();
-        when(physicalFileRepository.findByHash("a1b2c3")).thenReturn(Optional.empty());
         when(userService.findById(userId)).thenReturn(user);
-        when(storageService.createMultipartUpload(anyString(), eq("video/mp4"))).thenReturn("s3-upload-id");
-        when(storageService.presignUploadPart(anyString(), eq("s3-upload-id"), anyInt())).thenReturn("https://part-url");
-        when(sessionRepository.saveAndFlush(any())).thenAnswer(inv -> {
-            UploadSessionEntity session = inv.getArgument(0);
-            session.setId(UUID.randomUUID());
-            return session;
-        });
+        storageAcceptsANewUpload();
 
         InitUploadResponse response = service.init(request(75 * MB, 15), userId);
 
@@ -112,7 +124,6 @@ class ChunkUploadServiceTest {
     @Test
     void abortsTheStorageUploadWhenTheSessionCannotBeSaved() {
         when(userService.findById(userId)).thenReturn(new User());
-        when(physicalFileRepository.findByHash("a1b2c3")).thenReturn(Optional.empty());
         when(storageService.createMultipartUpload(anyString(), eq("video/mp4"))).thenReturn("s3-upload-id");
         when(sessionRepository.saveAndFlush(any())).thenThrow(new RuntimeException("value too long"));
 
@@ -129,5 +140,51 @@ class ChunkUploadServiceTest {
         assertThrows(BadRequestException.class, () -> service.init(request(10 * MB, 100), userId));
 
         verifyNoInteractions(physicalFileRepository, storageService, sessionRepository);
+    }
+
+    // ── Dedup ────────────────────────────────────────────────────────────────
+
+    @Test
+    void dedupsAgainstTheUploadersOwnStoredCopy() {
+        when(userService.findById(userId)).thenReturn(new User());
+        PhysicalFileEntity own = ownCopy(MB);
+        when(physicalFileRepository.findByUserIdAndHash(userId, HASH)).thenReturn(Optional.of(own));
+        when(storageService.exists(own.getStorageKey())).thenReturn(true);
+        FileDto created = FileDto.builder().id(UUID.randomUUID()).build();
+        when(fileService.createOrUpdateFile("lecture.mp4", MB, "video/mp4", null, userId,
+                own.getStorageKey(), own.getId(), true)).thenReturn(created);
+
+        InitUploadResponse response = service.init(request(MB, 1), userId);
+
+        assertTrue(response.isDuplicate());
+        assertSame(created, response.getFileItem());
+        verify(storageService, never()).createMultipartUpload(anyString(), anyString());
+    }
+
+    @Test
+    void uploadsNormallyWhenTheClaimedSizeDoesNotMatchTheStoredCopy() {
+        when(userService.findById(userId)).thenReturn(new User());
+        when(physicalFileRepository.findByUserIdAndHash(userId, HASH)).thenReturn(Optional.of(ownCopy(2 * MB)));
+        storageAcceptsANewUpload();
+
+        InitUploadResponse response = service.init(request(MB, 1), userId);
+
+        // A hash with a different size is a wrong claim: no dedup, a real upload.
+        assertFalse(response.isDuplicate());
+        verify(fileService, never()).createOrUpdateFile(any(), anyLong(), any(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void dropsAnEntryWhoseObjectIsGoneAndUploadsNormally() {
+        when(userService.findById(userId)).thenReturn(new User());
+        PhysicalFileEntity stale = ownCopy(MB);
+        when(physicalFileRepository.findByUserIdAndHash(userId, HASH)).thenReturn(Optional.of(stale));
+        when(storageService.exists(stale.getStorageKey())).thenReturn(false);
+        storageAcceptsANewUpload();
+
+        InitUploadResponse response = service.init(request(MB, 1), userId);
+
+        assertFalse(response.isDuplicate());
+        verify(physicalFileRepository).delete(stale);
     }
 }

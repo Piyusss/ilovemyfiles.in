@@ -69,6 +69,7 @@ class FileServiceIntegrationTest {
     @Autowired UserRepository userRepository;
     @Autowired UploadSessionRepository sessionRepository;
     @Autowired StorageCapacityService storageCapacityService;
+    @Autowired PhysicalFileRepository physicalFileRepository;
 
     // Instance field — new UUID per test instance
     private UUID userId;
@@ -194,6 +195,44 @@ class FileServiceIntegrationTest {
         UploadSessionEntity saved = sessionRepository.saveAndFlush(upload);
 
         assertEquals(r2UploadId, sessionRepository.findById(saved.getId()).orElseThrow().getS3UploadId());
+    }
+
+    @Test
+    void reuploadAfterDeletingAnOldVersion_getsTheNextNumberInsteadOfColliding() {
+        FileDto file = fileService.createOrUpdateFile("notes.txt", 1L, "text/plain", null, userId, "key/n1", null, false);
+        fileService.createOrUpdateFile("notes.txt", 2L, "text/plain", null, userId, "key/n2", null, false);
+        fileService.createOrUpdateFile("notes.txt", 3L, "text/plain", null, userId, "key/n3", null, false);
+        FileVersionEntity v1 = versionRepository.findByFileIdOrderByVersionDesc(file.getId()).get(2);
+        versionRepository.delete(v1);
+        versionRepository.flush();
+
+        // Used to compute count + 1 = 3, which already existed -> unique violation -> 500.
+        fileService.createOrUpdateFile("notes.txt", 4L, "text/plain", null, userId, "key/n4", null, false);
+        versionRepository.flush();
+
+        assertEquals(java.util.List.of(4, 3, 2),
+                versionRepository.findByFileIdOrderByVersionDesc(file.getId()).stream()
+                        .map(FileVersionEntity::getVersion).toList());
+    }
+
+    @Test
+    void finalizeUpload_registersDedupPerUser_andTheFirstEntryWinsOnAClash() {
+        UUID otherUser = createUser();
+        String hash = "f".repeat(64);
+
+        FileDto mine = fileService.finalizeUpload("a.bin", 10L, "application/octet-stream", null, userId, "key/mine", hash);
+        // Same content from another user: their own entry, not a clash with mine.
+        FileDto theirs = fileService.finalizeUpload("a.bin", 10L, "application/octet-stream", null, otherUser, "key/theirs", hash);
+        // Same content again from me, finishing later: my first entry stays.
+        FileDto again = fileService.finalizeUpload("b.bin", 10L, "application/octet-stream", null, userId, "key/again", hash);
+        fileRepository.flush();
+
+        PhysicalFileEntity myEntry = physicalFileRepository.findByUserIdAndHash(userId, hash).orElseThrow();
+        assertEquals("key/mine", myEntry.getStorageKey());
+        assertEquals("key/theirs", physicalFileRepository.findByUserIdAndHash(otherUser, hash).orElseThrow().getStorageKey());
+        assertEquals(myEntry.getId(), fileRepository.findById(mine.getId()).orElseThrow().getPhysicalFileId());
+        assertNotNull(fileRepository.findById(theirs.getId()).orElseThrow().getPhysicalFileId());
+        assertNull(fileRepository.findById(again.getId()).orElseThrow().getPhysicalFileId());
     }
 
     private UploadSessionEntity session(long size, String status, LocalDateTime createdAt) {
